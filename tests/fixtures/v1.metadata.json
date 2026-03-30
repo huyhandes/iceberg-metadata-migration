@@ -1,0 +1,17 @@
+{
+  "format-version": 2,
+  "table-uuid": "test-uuid-1234",
+  "location": "s3a://source-bucket/warehouse/db/table",
+  "current-snapshot-id": 1,
+  "snapshots": [
+    {
+      "snapshot-id": 1,
+      "timestamp-ms": 1700000000000,
+      "manifest-list": "s3a://source-bucket/warehouse/db/table/metadata/snap-1-manifest-list.avro",
+      "summary": {"operation": "append"}
+    }
+  ],
+  "metadata-log": [
+    {"timestamp-ms": 1700000000000, "metadata-file": "s3a://source-bucket/warehouse/db/table/metadata/v1.metadata.json"}
+  ]
+}
