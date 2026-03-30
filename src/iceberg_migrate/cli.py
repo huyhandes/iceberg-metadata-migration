@@ -119,8 +119,12 @@ def migrate(
                 f"Validation failed before write: {'; '.join(validation.errors)}"
             )
         paths_count, verbose_lines = count_rewritten_paths(result, config)
-    except FatalMigrationError:
-        raise
+    except FatalMigrationError as exc:
+        if json_output:
+            typer.echo(f"Fatal error: {exc}", err=True)
+        else:
+            typer.echo(f"Fatal error: {exc}", err=False)
+        raise typer.Exit(code=2)
     except Exception as exc:
         if json_output:
             typer.echo(f"Fatal error: {exc}", err=True)

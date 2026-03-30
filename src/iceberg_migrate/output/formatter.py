@@ -168,13 +168,14 @@ def count_rewritten_paths(
     """Count total path substitutions across all rewritten metadata bytes.
 
     Scans the raw bytes of all rewritten files (metadata_bytes,
-    manifest_list_bytes, manifest_bytes) for occurrences of the source
-    prefix. This is a byte-level count, so it covers all rewritten layers
+    manifest_list_bytes, manifest_bytes) for occurrences of the destination
+    prefix. Each occurrence represents a successfully rewritten path.
+    This is a byte-level count, so it covers all rewritten layers
     including JSON and Avro files.
 
     Args:
         result: RewriteResult containing all rewritten bytes.
-        config: RewriteConfig with src_prefix used to count substitutions.
+        config: RewriteConfig with dst_prefix used to count rewritten paths.
 
     Returns:
         Tuple of (total_count, verbose_lines) where:
@@ -182,12 +183,12 @@ def count_rewritten_paths(
           - verbose_lines: per-file substitution counts formatted as
             "  {filename}  : {N} paths rewritten"
     """
-    src_bytes = config.src_prefix.encode("utf-8")
+    dst_bytes = config.dst_prefix.encode("utf-8")
     total_count = 0
     verbose_lines: list[str] = []
 
     def _count_file(label: str, data: bytes) -> int:
-        n = data.count(src_bytes)
+        n = data.count(dst_bytes)
         if n > 0:
             verbose_lines.append(f"  {label}  : {n} paths rewritten")
         return n
