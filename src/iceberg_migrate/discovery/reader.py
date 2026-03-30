@@ -11,9 +11,9 @@ Key design decisions:
     stale cross-account or cross-scheme URI references.
 """
 import io
-import json
 
 import fastavro
+import orjson
 
 from iceberg_migrate.discovery.locator import find_latest_metadata
 from iceberg_migrate.models import IcebergMetadataGraph, ManifestFile, ManifestListFile
@@ -86,7 +86,7 @@ def load_metadata_graph(s3_client, bucket: str, table_prefix: str) -> IcebergMet
     # Step 1: locate latest metadata.json
     metadata_key = find_latest_metadata(s3_client, bucket, table_prefix)
     metadata_bytes = get_s3_object_bytes(s3_client, bucket, metadata_key)
-    metadata_dict = json.loads(metadata_bytes)
+    metadata_dict = orjson.loads(metadata_bytes)
 
     graph = IcebergMetadataGraph(
         metadata_s3_key=metadata_key,

@@ -1,31 +1,30 @@
 """Typed data structures for the in-memory Iceberg metadata graph."""
-from dataclasses import dataclass, field
+from typing import Any
+
+from pydantic import BaseModel
 
 
-@dataclass
-class ManifestListFile:
+class ManifestListFile(BaseModel):
     """One manifest list Avro file loaded from S3.
 
     Contains entries that each reference a manifest file via manifest_path.
     """
     s3_key: str
-    avro_schema: dict          # writer_schema preserved for Phase 2 round-trip writes
-    records: list[dict]        # Each record has 'manifest_path' field
+    avro_schema: dict[str, Any]     # writer_schema preserved for Phase 2 round-trip writes
+    records: list[dict[str, Any]]   # Each record has 'manifest_path' field
 
 
-@dataclass
-class ManifestFile:
+class ManifestFile(BaseModel):
     """One manifest Avro file loaded from S3.
 
     Contains entries that each reference data files via data_file.file_path.
     """
     s3_key: str
-    avro_schema: dict          # writer_schema preserved for Phase 2 round-trip writes
-    records: list[dict]        # Each record has 'data_file' dict with 'file_path'
+    avro_schema: dict[str, Any]     # writer_schema preserved for Phase 2 round-trip writes
+    records: list[dict[str, Any]]   # Each record has 'data_file' dict with 'file_path'
 
 
-@dataclass
-class IcebergMetadataGraph:
+class IcebergMetadataGraph(BaseModel):
     """Full in-memory representation of a loaded Iceberg table's metadata.
 
     The metadata dict is the raw parsed metadata.json.
@@ -33,6 +32,6 @@ class IcebergMetadataGraph:
     in the current snapshot.
     """
     metadata_s3_key: str
-    metadata: dict             # Raw parsed metadata.json
-    manifest_lists: list[ManifestListFile] = field(default_factory=list)
-    manifests: list[ManifestFile] = field(default_factory=list)
+    metadata: dict[str, Any]        # Raw parsed metadata.json
+    manifest_lists: list[ManifestListFile] = []
+    manifests: list[ManifestFile] = []
