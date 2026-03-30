@@ -8,6 +8,8 @@ dependencies = [
     "fastavro==1.12.1",
     "orjson>=3.9.0",
     "pydantic==2.12.5",
+    "pyiceberg[glue]==0.11.1",
+    "rich",
     "typer==0.24.1",
 ]
 
@@ -24,6 +26,6 @@ packages = ["src/iceberg_migrate"]
 [dependency-groups]
 dev = [
     "pytest>=8.0",
-    "moto[s3]>=5.0",
+    "moto[s3,glue]>=5.0",
     "ruff>=0.4",
 ]

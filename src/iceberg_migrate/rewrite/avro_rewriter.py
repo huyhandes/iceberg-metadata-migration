@@ -50,4 +50,11 @@ def rewrite_manifest_records(records: list[dict], config: RewriteConfig) -> list
             path = data_file.get("file_path", "")
             if path:
                 data_file["file_path"] = config.replace_prefix(path)
+            # v3: rewrite deletion vector paths (D-09, D-10, D-11)
+            dv = data_file.get("deletion_vector")
+            if dv and isinstance(dv, dict):
+                if "path" in dv:
+                    dv["path"] = config.replace_prefix(dv["path"])
+                if "file_location" in dv:
+                    dv["file_location"] = config.replace_prefix(dv["file_location"])
     return result
