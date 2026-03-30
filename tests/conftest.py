@@ -9,3 +9,13 @@ def s3_client():
     with mock_aws():
         client = boto3.client("s3", region_name="us-east-1")
         yield client
+
+
+@pytest.fixture
+def aws_clients():
+    """Provide mocked S3 and Glue clients with a pre-created testdb database."""
+    with mock_aws():
+        s3 = boto3.client("s3", region_name="us-east-1")
+        glue = boto3.client("glue", region_name="us-east-1")
+        glue.create_database(DatabaseInput={"Name": "testdb"})
+        yield s3, glue
