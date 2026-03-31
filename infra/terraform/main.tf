@@ -11,17 +11,17 @@ terraform {
     bucket  = "YOUR_TEST_BUCKET"
     key     = "terraform/iceberg-migration.tfstate"
     region  = "YOUR_REGION"
-    profile = "${AWS_PROFILE}"
+    # Set via AWS_PROFILE env var or -backend-config="profile=yourprofile"
   }
 }
 
 provider "aws" {
-  region  = "YOUR_REGION"
-  profile = "${AWS_PROFILE}"
+  region = "YOUR_REGION"
+  # Set via AWS_PROFILE env var
 }
 
 # S3 bucket created manually (also used as terraform backend)
-# aws s3 mb s3://YOUR_TEST_BUCKET --region YOUR_REGION --profile ${AWS_PROFILE}
+# aws s3 mb s3://YOUR_TEST_BUCKET --region YOUR_REGION
 
 # Glue Catalog Database
 resource "aws_glue_catalog_database" "iceberg_test" {

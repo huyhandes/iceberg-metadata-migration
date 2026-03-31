@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-AWS_PROFILE="${AWS_PROFILE}"
+AWS_PROFILE="${AWS_PROFILE:?Set AWS_PROFILE before running}"
 AWS_REGION="YOUR_REGION"
 GLUE_DB="iceberg_migration_test"
 TABLE="orders"
