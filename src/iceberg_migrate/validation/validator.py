@@ -10,6 +10,8 @@ Usage:
     if not result.passed:
         raise RuntimeError(f"Validation failed: {result.errors}")
 """
+from typing import Any
+
 import orjson
 from pydantic import BaseModel
 
@@ -97,7 +99,7 @@ def _check_structural(metadata_bytes: bytes, errors: list[str]) -> bool:
     False if not.
     """
     try:
-        m = orjson.loads(metadata_bytes)
+        m: dict[str, Any] = orjson.loads(metadata_bytes)
     except Exception as e:
         errors.append(f"metadata.json is not valid JSON: {e}")
         return False

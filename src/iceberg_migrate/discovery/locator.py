@@ -4,7 +4,13 @@ Supports both naming conventions used by Iceberg writers:
   - Old-style: v1.metadata.json, v2.metadata.json, v10.metadata.json
   - New-style: 00001-uuid.metadata.json, 00010-uuid.metadata.json
 """
+from __future__ import annotations
+
 import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
 
 
 def _parse_version(filename: str) -> int:
@@ -32,7 +38,7 @@ def _parse_version(filename: str) -> int:
     return -1
 
 
-def find_latest_metadata(s3_client, bucket: str, table_prefix: str) -> str:
+def find_latest_metadata(s3_client: S3Client, bucket: str, table_prefix: str) -> str:
     """Return the S3 key of the highest-versioned metadata.json in *bucket*.
 
     Scans ``<table_prefix>/metadata/`` and selects the file with the largest
@@ -58,7 +64,9 @@ def find_latest_metadata(s3_client, bucket: str, table_prefix: str) -> str:
     candidates: list[tuple[str, int]] = []
     for page in pages:
         for obj in page.get("Contents", []):
-            key = obj["Key"]
+            key = obj.get("Key", "")
+            if not key:
+                continue
             filename = key.split("/")[-1]
             if filename.endswith(".metadata.json"):
                 version = _parse_version(filename)

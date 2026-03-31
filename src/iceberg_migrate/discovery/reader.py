@@ -10,7 +10,10 @@ Key design decisions:
     fetching from the known table_prefix + "/metadata/" directory.  This avoids
     stale cross-account or cross-scheme URI references.
 """
+from __future__ import annotations
+
 import io
+from typing import TYPE_CHECKING, Any, cast
 
 import fastavro
 import orjson
@@ -19,8 +22,11 @@ from iceberg_migrate.discovery.locator import find_latest_metadata
 from iceberg_migrate.models import IcebergMetadataGraph, ManifestFile, ManifestListFile
 from iceberg_migrate.s3 import get_s3_object_bytes
 
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
 
-def load_avro_with_schema(data: bytes) -> tuple[dict, list[dict]]:
+
+def load_avro_with_schema(data: bytes) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Read Avro bytes and return the writer schema alongside all records.
 
     The writer_schema is captured *before* iterating to ensure fastavro does
@@ -32,16 +38,22 @@ def load_avro_with_schema(data: bytes) -> tuple[dict, list[dict]]:
     Returns:
         A (writer_schema, records) tuple where writer_schema is a dict and
         records is a list of dicts.
+
+    Raises:
+        ValueError: If the Avro file has no embedded writer schema (invalid for Iceberg).
     """
     buf = io.BytesIO(data)
     reader = fastavro.reader(buf)
     # Capture writer_schema BEFORE consuming the iterator
-    writer_schema = reader.writer_schema
-    records = list(reader)
+    raw_schema = reader.writer_schema
+    if raw_schema is None:
+        raise ValueError("Avro file has no embedded writer schema — invalid for Iceberg metadata")
+    writer_schema = cast(dict[str, Any], raw_schema)
+    records = cast(list[dict[str, Any]], list(reader))
     return writer_schema, records
 
 
-def _resolve_avro_key(uri: str, table_prefix: str) -> str:
+def resolve_avro_key(uri: str, table_prefix: str) -> str:
     """Resolve an Avro file URI to an S3 key under the known table prefix.
 
     Extracts the bare filename from the URI (ignoring scheme, bucket, and
@@ -61,7 +73,7 @@ def _resolve_avro_key(uri: str, table_prefix: str) -> str:
     return table_prefix.rstrip("/") + "/metadata/" + filename
 
 
-def load_metadata_graph(s3_client, bucket: str, table_prefix: str) -> IcebergMetadataGraph:
+def load_metadata_graph(s3_client: S3Client, bucket: str, table_prefix: str) -> IcebergMetadataGraph:
     """Load the full Iceberg metadata graph from S3 into typed structures.
 
     Steps:
@@ -86,7 +98,7 @@ def load_metadata_graph(s3_client, bucket: str, table_prefix: str) -> IcebergMet
     # Step 1: locate latest metadata.json
     metadata_key = find_latest_metadata(s3_client, bucket, table_prefix)
     metadata_bytes = get_s3_object_bytes(s3_client, bucket, metadata_key)
-    metadata_dict = orjson.loads(metadata_bytes)
+    metadata_dict: dict[str, Any] = orjson.loads(metadata_bytes)
 
     graph = IcebergMetadataGraph(
         metadata_s3_key=metadata_key,
@@ -111,7 +123,7 @@ def load_metadata_graph(s3_client, bucket: str, table_prefix: str) -> IcebergMet
     if not manifest_list_uri:
         return graph
 
-    manifest_list_key = _resolve_avro_key(manifest_list_uri, table_prefix)
+    manifest_list_key = resolve_avro_key(manifest_list_uri, table_prefix)
     manifest_list_bytes = get_s3_object_bytes(s3_client, bucket, manifest_list_key)
     ml_schema, ml_records = load_avro_with_schema(manifest_list_bytes)
 
@@ -128,7 +140,7 @@ def load_metadata_graph(s3_client, bucket: str, table_prefix: str) -> IcebergMet
         if not manifest_path:
             continue
 
-        manifest_key = _resolve_avro_key(manifest_path, table_prefix)
+        manifest_key = resolve_avro_key(manifest_path, table_prefix)
         manifest_bytes = get_s3_object_bytes(s3_client, bucket, manifest_key)
         m_schema, m_records = load_avro_with_schema(manifest_bytes)
 

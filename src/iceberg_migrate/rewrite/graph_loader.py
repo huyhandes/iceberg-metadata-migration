@@ -7,12 +7,19 @@ rewrite engine needs ALL snapshots' manifest lists and manifests loaded.
 This module extends an existing IcebergMetadataGraph by fetching any
 manifest lists and manifests not yet loaded.
 """
-from iceberg_migrate.discovery.reader import load_avro_with_schema, _resolve_avro_key
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+from iceberg_migrate.discovery.reader import load_avro_with_schema, resolve_avro_key
 from iceberg_migrate.models import IcebergMetadataGraph, ManifestListFile, ManifestFile
 from iceberg_migrate.s3 import get_s3_object_bytes
 
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
 
-def collect_all_manifest_list_uris(metadata: dict) -> list[str]:
+
+def collect_all_manifest_list_uris(metadata: dict[str, Any]) -> list[str]:
     """Return deduplicated manifest-list URIs from every snapshot in metadata.json.
 
     Args:
@@ -33,7 +40,7 @@ def collect_all_manifest_list_uris(metadata: dict) -> list[str]:
 
 def load_full_graph(
     graph: IcebergMetadataGraph,
-    s3_client,
+    s3_client: S3Client,
     bucket: str,
     table_prefix: str,
 ) -> IcebergMetadataGraph:
@@ -66,7 +73,7 @@ def load_full_graph(
     new_manifests = list(graph.manifests)
 
     for uri in all_uris:
-        ml_key = _resolve_avro_key(uri, table_prefix)
+        ml_key = resolve_avro_key(uri, table_prefix)
         if ml_key in loaded_ml_keys:
             # Already loaded (e.g., current snapshot's manifest list from Phase 1)
             # But still need to check its manifest records for new manifests
@@ -103,9 +110,9 @@ def load_full_graph(
 
 
 def _load_manifests_from_records(
-    ml_records: list[dict],
+    ml_records: list[dict[str, Any]],
     table_prefix: str,
-    s3_client,
+    s3_client: S3Client,
     bucket: str,
     loaded_m_keys: set[str],
     manifests_out: list[ManifestFile],
@@ -115,7 +122,7 @@ def _load_manifests_from_records(
         manifest_path = record.get("manifest_path", "")
         if not manifest_path:
             continue
-        m_key = _resolve_avro_key(manifest_path, table_prefix)
+        m_key = resolve_avro_key(manifest_path, table_prefix)
         if m_key in loaded_m_keys:
             continue
         m_bytes = get_s3_object_bytes(s3_client, bucket, m_key)

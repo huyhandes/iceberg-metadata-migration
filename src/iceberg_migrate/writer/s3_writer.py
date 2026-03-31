@@ -11,9 +11,15 @@ once all dependent files are safely in place).
 
 Does NOT catch exceptions — callers are responsible for mapping errors to exit codes.
 """
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from iceberg_migrate.rewrite.engine import RewriteResult
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
 
 
 @dataclass
@@ -28,7 +34,7 @@ class WriteResult:
     metadata_s3_key: str   # the S3 key that was written
 
 
-def write_all(s3_client, bucket: str, result: RewriteResult) -> WriteResult:
+def write_all(s3_client: S3Client, bucket: str, result: RewriteResult) -> WriteResult:
     """Write rewritten Iceberg metadata bytes to S3 in bottom-up order.
 
     Writes in the order: manifests -> manifest lists -> metadata.json.

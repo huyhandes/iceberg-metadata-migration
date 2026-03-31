@@ -1,4 +1,13 @@
 {
   "include": ["src"],
-  "reportCallInDefaultInitializer": false
+  "reportCallInDefaultInitializer": false,
+  "reportExplicitAny": false,
+  "reportUnusedCallResult": false,
+  "reportAny": false,
+  "reportUnknownVariableType": false,
+  "reportUnknownMemberType": false,
+  "reportUnknownArgumentType": false,
+  "reportUnknownParameterType": false,
+  "reportInvalidCast": false,
+  "reportMissingTypeArgument": false
 }

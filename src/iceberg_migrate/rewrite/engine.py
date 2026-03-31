@@ -9,13 +9,19 @@ Output is a RewriteResult containing:
   - manifest_list_bytes: fastavro-serialized rewritten manifest list Avro files
   - manifest_bytes: fastavro-serialized rewritten manifest Avro files
 """
+from __future__ import annotations
+
 import io
+from typing import TYPE_CHECKING, Any
 
 import fastavro
 import orjson
 
 from iceberg_migrate.models import IcebergMetadataGraph, ManifestListFile, ManifestFile
 from iceberg_migrate.rewrite.config import RewriteConfig
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
 from iceberg_migrate.rewrite.graph_loader import load_full_graph
 from iceberg_migrate.rewrite.metadata_rewriter import rewrite_metadata_json
 from iceberg_migrate.rewrite.avro_rewriter import rewrite_manifest_list_records, rewrite_manifest_records
@@ -26,6 +32,10 @@ class RewriteResult:
 
     Uses a plain __init__ (not Pydantic) because bytes fields are not JSON-serializable.
     """
+    graph: IcebergMetadataGraph
+    metadata_bytes: bytes
+    manifest_list_bytes: dict[str, bytes]  # s3_key -> rewritten Avro bytes
+    manifest_bytes: dict[str, bytes]        # s3_key -> rewritten Avro bytes
 
     def __init__(
         self,
@@ -48,13 +58,15 @@ class RewriteEngine:
     per D-06, D-08, D-09, D-11.
     """
 
+    config: RewriteConfig
+
     def __init__(self, config: RewriteConfig):
         self.config = config
 
     def rewrite(
         self,
         graph: IcebergMetadataGraph,
-        s3_client,
+        s3_client: S3Client,
         bucket: str,
         table_prefix: str,
     ) -> RewriteResult:
@@ -126,7 +138,7 @@ class RewriteEngine:
         )
 
     @staticmethod
-    def _serialize_avro(schema: dict, records: list[dict]) -> bytes:
+    def _serialize_avro(schema: dict[str, Any], records: list[dict[str, Any]]) -> bytes:
         """Serialize records to Avro bytes using the given writer schema."""
         buf = io.BytesIO()
         fastavro.writer(buf, schema, records)

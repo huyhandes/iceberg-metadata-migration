@@ -18,10 +18,14 @@ from __future__ import annotations
 import os
 import sys
 import time
-from typing import Optional
+from typing import TYPE_CHECKING
 
 import boto3
 import typer
+
+if TYPE_CHECKING:
+    from mypy_boto3_glue import GlueClient
+    from mypy_boto3_s3 import S3Client
 
 from iceberg_migrate.catalog.glue_registrar import derive_glue_names, register_or_update
 from iceberg_migrate.discovery.reader import load_metadata_graph
@@ -48,6 +52,8 @@ class PartialMigrationError(Exception):
     Attributes:
         summary: MigrationSummary populated with completed write counts.
     """
+    summary: MigrationSummary
+
     def __init__(self, message: str, summary: MigrationSummary):
         super().__init__(message)
         self.summary = summary
@@ -76,16 +82,16 @@ def migrate(
     verbose: bool = typer.Option(
         False, "--verbose", help="Print per-file debug output"
     ),
-    glue_database: Optional[str] = typer.Option(
+    glue_database: str | None = typer.Option(
         None, "--glue-database", help="Glue database name (derived from table_location if omitted)"
     ),
-    glue_table: Optional[str] = typer.Option(
+    glue_table: str | None = typer.Option(
         None, "--glue-table", help="Glue table name (derived from table_location if omitted)"
     ),
     json_output: bool = typer.Option(
         False, "--json", help="Emit machine-readable JSON to stdout; human summary goes to stderr"
     ),
-    aws_region: Optional[str] = typer.Option(
+    aws_region: str | None = typer.Option(
         None, "--aws-region", help="AWS region for Glue (falls back to AWS_DEFAULT_REGION env var)"
     ),
 ) -> None:
@@ -106,7 +112,7 @@ def migrate(
     # Resolve AWS region (D-07, Pitfall 1)
     region = aws_region or os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 
-    s3_client = boto3.client("s3")
+    s3_client: S3Client = boto3.client("s3")
 
     # --- Phase 1: Discovery + Rewrite + Validation (fatal if any step fails, exit 2) ---
     try:
@@ -136,7 +142,7 @@ def migrate(
     writes_completed = 0
     metadata_s3_key = result.graph.metadata_s3_key
     metadata_s3_uri = f"s3://{bucket}/{metadata_s3_key}"
-    glue_action: Optional[str] = None
+    glue_action: str | None = None
     write_counts = {"manifests": 0, "manifest_lists": 0, "metadata": 0}
 
     if not dry_run:
@@ -155,11 +161,9 @@ def migrate(
             }
 
             # Register in Glue Catalog
-            from pyiceberg.catalog.glue import GlueCatalog
-            glue_client = boto3.client("glue", region_name=region)
-            catalog = GlueCatalog("glue", **{"glue.region": region})
+            glue_client: GlueClient = boto3.client("glue", region_name=region)
             glue_action = register_or_update(
-                catalog, glue_client, glue_db, glue_tbl, metadata_s3_uri
+                None, glue_client, glue_db, glue_tbl, metadata_s3_uri
             )
         except Exception as exc:
             # Determine partial vs. fatal based on how many writes completed (D-16, Pitfall 4)

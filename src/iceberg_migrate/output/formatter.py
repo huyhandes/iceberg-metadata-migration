@@ -13,8 +13,8 @@ Output routing per D-13:
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import IO, TYPE_CHECKING
 
 import orjson
 from rich.console import Console
@@ -52,7 +52,7 @@ class MigrationSummary:
 def render_human(
     summary: MigrationSummary,
     verbose_lines: list[str] | None = None,
-    file=None,
+    file: IO[str] | None = None,
 ) -> None:
     """Render a structured human-readable migration summary using rich.
 

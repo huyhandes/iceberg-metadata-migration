@@ -1,5 +1,11 @@
 """S3 utility functions for URI parsing and object access."""
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
 
 
 def parse_s3_uri(uri: str) -> tuple[str, str]:
@@ -24,7 +30,7 @@ def parse_s3_uri(uri: str) -> tuple[str, str]:
     return bucket, key
 
 
-def get_s3_object_bytes(s3_client, bucket: str, key: str) -> bytes:
+def get_s3_object_bytes(s3_client: S3Client, bucket: str, key: str) -> bytes:
     """Download an S3 object and return its contents as bytes.
 
     Args:

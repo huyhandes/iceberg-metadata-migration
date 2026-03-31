@@ -19,9 +19,11 @@ ensuring Athena and EMR compatibility while removing the FileIO dependency.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
+    from mypy_boto3_glue import GlueClient
+    from mypy_boto3_glue.type_defs import TableInputTypeDef
     from pyiceberg.catalog.glue import GlueCatalog
 
 from iceberg_migrate.s3 import parse_s3_uri
@@ -60,8 +62,8 @@ def derive_glue_names(table_location: str) -> tuple[str, str]:
 
 
 def register_or_update(
-    catalog: GlueCatalog,
-    glue_client,
+    _catalog: GlueCatalog | None,
+    glue_client: GlueClient,
     database: str,
     table: str,
     metadata_s3_uri: str,
@@ -92,7 +94,7 @@ def register_or_update(
     """
     try:
         # Create new Glue table with Iceberg-specific properties (D-05)
-        table_input: dict = {
+        create_input = cast("TableInputTypeDef", {
             "Name": table,
             "TableType": "EXTERNAL_TABLE",
             "Parameters": {
@@ -101,8 +103,8 @@ def register_or_update(
             },
             "StorageDescriptor": {},
             "PartitionKeys": [],
-        }
-        glue_client.create_table(DatabaseName=database, TableInput=table_input)
+        })
+        glue_client.create_table(DatabaseName=database, TableInput=create_input)
         return "created"
     except glue_client.exceptions.AlreadyExistsException:
         # Retrieve current Glue table to get VersionId for optimistic locking (D-06)
@@ -112,7 +114,7 @@ def register_or_update(
 
         # Reconstruct TableInput: preserve existing StorageDescriptor and PartitionKeys,
         # only update metadata_location and table_type in Parameters
-        table_input = {
+        update_input = cast("TableInputTypeDef", {
             "Name": table,
             "StorageDescriptor": glue_table.get("StorageDescriptor", {}),
             "PartitionKeys": glue_table.get("PartitionKeys", []),
@@ -122,10 +124,10 @@ def register_or_update(
                 "metadata_location": metadata_s3_uri,
                 "table_type": "ICEBERG",
             },
-        }
+        })
         glue_client.update_table(
             DatabaseName=database,
-            TableInput=table_input,
+            TableInput=update_input,
             SkipArchive=True,
             VersionId=version_id,
         )
