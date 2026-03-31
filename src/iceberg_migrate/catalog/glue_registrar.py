@@ -61,12 +61,60 @@ def derive_glue_names(table_location: str) -> tuple[str, str]:
         raise ValueError(f"Cannot derive Glue names from table_location: {table_location!r}")
 
 
+ICEBERG_TYPE_MAP = {
+    "boolean": "boolean",
+    "int": "int",
+    "long": "bigint",
+    "float": "float",
+    "double": "double",
+    "decimal": "decimal",
+    "date": "date",
+    "time": "string",
+    "timestamp": "timestamp",
+    "timestamptz": "timestamp",
+    "string": "string",
+    "uuid": "string",
+    "fixed": "binary",
+    "binary": "binary",
+}
+
+
+def _iceberg_schema_to_glue_columns(metadata: dict) -> list[dict]:
+    """Convert Iceberg schema fields to Glue Columns format with iceberg.field.* parameters.
+
+    Athena requires these parameters to correctly resolve Iceberg columns.
+    """
+    schemas = metadata.get("schemas", [])
+    current_schema_id = metadata.get("current-schema-id", 0)
+    schema = next((s for s in schemas if s.get("schema-id") == current_schema_id), schemas[0] if schemas else None)
+    if not schema:
+        return []
+
+    columns = []
+    for field in schema.get("fields", []):
+        field_type = field.get("type", "string")
+        if isinstance(field_type, dict):
+            field_type = field_type.get("type", "string")
+        glue_type = ICEBERG_TYPE_MAP.get(field_type, "string")
+        columns.append({
+            "Name": field["name"],
+            "Type": glue_type,
+            "Parameters": {
+                "iceberg.field.id": str(field.get("id", 0)),
+                "iceberg.field.optional": str(not field.get("required", False)).lower(),
+                "iceberg.field.current": "true",
+            },
+        })
+    return columns
+
+
 def register_or_update(
     _catalog: GlueCatalog | None,
     glue_client: GlueClient,
     database: str,
     table: str,
     metadata_s3_uri: str,
+    metadata: dict | None = None,
 ) -> str:
     """Register a table in Glue Catalog, or update metadata_location if it already exists.
 
@@ -94,6 +142,9 @@ def register_or_update(
     """
     try:
         # Create new Glue table with Iceberg-specific properties (D-05)
+        # Extract table location from metadata URI (strip /metadata/XXX.metadata.json)
+        table_s3_location = metadata_s3_uri.rsplit("/metadata/", 1)[0]
+        columns = _iceberg_schema_to_glue_columns(metadata) if metadata else []
         create_input = cast("TableInputTypeDef", {
             "Name": table,
             "TableType": "EXTERNAL_TABLE",
@@ -101,7 +152,17 @@ def register_or_update(
                 "table_type": "ICEBERG",
                 "metadata_location": metadata_s3_uri,
             },
-            "StorageDescriptor": {},
+            "StorageDescriptor": {
+                "Location": table_s3_location,
+                "AdditionalLocations": [f"{table_s3_location}/data"],
+                "Columns": columns,
+                "Compressed": False,
+                "InputFormat": "org.apache.hadoop.mapred.FileInputFormat",
+                "OutputFormat": "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat",
+                "SerdeInfo": {
+                    "SerializationLibrary": "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
+                },
+            },
             "PartitionKeys": [],
         })
         glue_client.create_table(DatabaseName=database, TableInput=create_input)

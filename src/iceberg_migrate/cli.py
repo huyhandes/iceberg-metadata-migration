@@ -119,7 +119,11 @@ def migrate(
         graph = load_metadata_graph(s3_client, bucket, table_key)
         engine = RewriteEngine(config)
         result = engine.rewrite(graph, s3_client, bucket, table_key)
-        validation = validate_rewrite(graph, result, source_prefix)
+        # Use the rewritten graph for count comparison — the engine's load_full_graph
+        # expanded the partial Phase 1 graph to include all snapshots' manifests.
+        # Count check verifies serialization preserved all files, not that we
+        # didn't add files (which load_full_graph intentionally does).
+        validation = validate_rewrite(result.graph, result, source_prefix)
         if not validation.passed:
             raise FatalMigrationError(
                 f"Validation failed before write: {'; '.join(validation.errors)}"
@@ -163,7 +167,8 @@ def migrate(
             # Register in Glue Catalog
             glue_client: GlueClient = boto3.client("glue", region_name=region)
             glue_action = register_or_update(
-                None, glue_client, glue_db, glue_tbl, metadata_s3_uri
+                None, glue_client, glue_db, glue_tbl, metadata_s3_uri,
+                metadata=result.graph.metadata,
             )
         except Exception as exc:
             # Determine partial vs. fatal based on how many writes completed (D-16, Pitfall 4)
