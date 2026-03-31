@@ -28,4 +28,5 @@ dev = [
     "pytest>=8.0",
     "moto[s3,glue]>=5.0",
     "ruff>=0.4",
+    "boto3-stubs[s3,glue]",
 ]
