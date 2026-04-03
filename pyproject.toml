@@ -37,6 +37,14 @@ reportUnknownParameterType = false
 reportInvalidCast = false
 reportMissingTypeArgument = false
 
+[tool.pytest.ini_options]
+markers = [
+    "rest: tests using Lakekeeper REST catalog source",
+    "sql: tests using SQL (SQLite) catalog source",
+    "hms: tests using Hive Metastore catalog source",
+    "integration: full AWS round-trip (requires AWS creds and Docker)",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
