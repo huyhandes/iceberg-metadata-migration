@@ -10,6 +10,7 @@ Key design decisions:
     fetching from the known table_prefix + "/metadata/" directory.  This avoids
     stale cross-account or cross-scheme URI references.
 """
+
 from __future__ import annotations
 
 import io
@@ -47,7 +48,9 @@ def load_avro_with_schema(data: bytes) -> tuple[dict[str, Any], list[dict[str, A
     # Capture writer_schema BEFORE consuming the iterator
     raw_schema = reader.writer_schema
     if raw_schema is None:
-        raise ValueError("Avro file has no embedded writer schema — invalid for Iceberg metadata")
+        raise ValueError(
+            "Avro file has no embedded writer schema — invalid for Iceberg metadata"
+        )
     writer_schema = cast(dict[str, Any], raw_schema)
     records = cast(list[dict[str, Any]], list(reader))
     return writer_schema, records
@@ -73,7 +76,9 @@ def resolve_avro_key(uri: str, table_prefix: str) -> str:
     return table_prefix.rstrip("/") + "/metadata/" + filename
 
 
-def load_metadata_graph(s3_client: S3Client, bucket: str, table_prefix: str) -> IcebergMetadataGraph:
+def load_metadata_graph(
+    s3_client: S3Client, bucket: str, table_prefix: str
+) -> IcebergMetadataGraph:
     """Load the full Iceberg metadata graph from S3 into typed structures.
 
     Steps:

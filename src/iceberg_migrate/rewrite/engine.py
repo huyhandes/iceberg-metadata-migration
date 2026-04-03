@@ -9,6 +9,7 @@ Output is a RewriteResult containing:
   - manifest_list_bytes: fastavro-serialized rewritten manifest list Avro files
   - manifest_bytes: fastavro-serialized rewritten manifest Avro files
 """
+
 from __future__ import annotations
 
 import io
@@ -24,7 +25,10 @@ if TYPE_CHECKING:
     from mypy_boto3_s3 import S3Client
 from iceberg_migrate.rewrite.graph_loader import load_full_graph
 from iceberg_migrate.rewrite.metadata_rewriter import rewrite_metadata_json
-from iceberg_migrate.rewrite.avro_rewriter import rewrite_manifest_list_records, rewrite_manifest_records
+from iceberg_migrate.rewrite.avro_rewriter import (
+    rewrite_manifest_list_records,
+    rewrite_manifest_records,
+)
 
 
 class RewriteResult:
@@ -32,17 +36,18 @@ class RewriteResult:
 
     Uses a plain __init__ (not Pydantic) because bytes fields are not JSON-serializable.
     """
+
     graph: IcebergMetadataGraph
     metadata_bytes: bytes
     manifest_list_bytes: dict[str, bytes]  # s3_key -> rewritten Avro bytes
-    manifest_bytes: dict[str, bytes]        # s3_key -> rewritten Avro bytes
+    manifest_bytes: dict[str, bytes]  # s3_key -> rewritten Avro bytes
 
     def __init__(
         self,
         graph: IcebergMetadataGraph,
         metadata_bytes: bytes,
-        manifest_list_bytes: dict[str, bytes],   # s3_key -> rewritten Avro bytes
-        manifest_bytes: dict[str, bytes],         # s3_key -> rewritten Avro bytes
+        manifest_list_bytes: dict[str, bytes],  # s3_key -> rewritten Avro bytes
+        manifest_bytes: dict[str, bytes],  # s3_key -> rewritten Avro bytes
     ):
         self.graph = graph
         self.metadata_bytes = metadata_bytes
@@ -58,7 +63,7 @@ def remap_key_to_migrated(key: str, table_prefix: str) -> str:
     """
     prefix = table_prefix.rstrip("/")
     if key.startswith(prefix + "/"):
-        suffix = key[len(prefix) + 1:]
+        suffix = key[len(prefix) + 1 :]
         return f"{prefix}/_migrated/{suffix}"
     return f"{prefix}/_migrated/{key}"
 
@@ -136,25 +141,35 @@ class RewriteEngine:
             m_bytes_map[m.s3_key] = self._serialize_avro(m.avro_schema, new_records)
 
         # Step 6: Remap all keys to _migrated/ paths
-        migrated_metadata_key = remap_key_to_migrated(full_graph.metadata_s3_key, table_prefix)
+        migrated_metadata_key = remap_key_to_migrated(
+            full_graph.metadata_s3_key, table_prefix
+        )
 
         migrated_ml_bytes: dict[str, bytes] = {}
         migrated_ml_list: list[ManifestListFile] = []
         for ml in rewritten_ml_list:
             new_key = remap_key_to_migrated(ml.s3_key, table_prefix)
             migrated_ml_bytes[new_key] = ml_bytes_map[ml.s3_key]
-            migrated_ml_list.append(ManifestListFile(
-                s3_key=new_key, avro_schema=ml.avro_schema, records=ml.records,
-            ))
+            migrated_ml_list.append(
+                ManifestListFile(
+                    s3_key=new_key,
+                    avro_schema=ml.avro_schema,
+                    records=ml.records,
+                )
+            )
 
         migrated_m_bytes: dict[str, bytes] = {}
         migrated_m_list: list[ManifestFile] = []
         for m in rewritten_m_list:
             new_key = remap_key_to_migrated(m.s3_key, table_prefix)
             migrated_m_bytes[new_key] = m_bytes_map[m.s3_key]
-            migrated_m_list.append(ManifestFile(
-                s3_key=new_key, avro_schema=m.avro_schema, records=m.records,
-            ))
+            migrated_m_list.append(
+                ManifestFile(
+                    s3_key=new_key,
+                    avro_schema=m.avro_schema,
+                    records=m.records,
+                )
+            )
 
         rewritten_graph = IcebergMetadataGraph(
             metadata_s3_key=migrated_metadata_key,

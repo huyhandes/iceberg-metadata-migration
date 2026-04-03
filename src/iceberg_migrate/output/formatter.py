@@ -10,6 +10,7 @@ Output routing per D-13:
   - Human summary: goes to stdout (or stderr when --json flag active)
   - JSON output: always to stdout (pipeable)
 """
+
 from __future__ import annotations
 
 import sys
@@ -33,6 +34,7 @@ class MigrationSummary:
     Populated from WriteResult counts after a successful migration.
     Used by both render_human and render_json.
     """
+
     source_prefix: str
     dest_prefix: str
     table_location: str
@@ -90,7 +92,9 @@ def render_human(
     # Use "would be" labels in dry_run mode (D-14)
     if summary.dry_run:
         table.add_row("Manifests", f"{summary.manifests_written} would be written")
-        table.add_row("Manifest lists", f"{summary.manifest_lists_written} would be written")
+        table.add_row(
+            "Manifest lists", f"{summary.manifest_lists_written} would be written"
+        )
         table.add_row("Paths", f"{summary.paths_rewritten} would be rewritten")
     else:
         table.add_row("Manifests written", str(summary.manifests_written))

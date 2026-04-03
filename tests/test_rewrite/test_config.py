@@ -1,4 +1,5 @@
 """Tests for RewriteConfig Pydantic model — PATH-06 s3a normalization."""
+
 import pytest
 from pydantic import ValidationError
 
@@ -14,7 +15,9 @@ DST = "s3://dst/warehouse"
 # ---------------------------------------------------------------------------
 def test_rewrite_config_valid_creation():
     """RewriteConfig creates a valid instance and strips trailing slashes."""
-    cfg = RewriteConfig(src_prefix="s3a://src/warehouse", dst_prefix="s3://dst/warehouse")
+    cfg = RewriteConfig(
+        src_prefix="s3a://src/warehouse", dst_prefix="s3://dst/warehouse"
+    )
     assert cfg.src_prefix == "s3a://src/warehouse"
     assert cfg.dst_prefix == "s3://dst/warehouse"
 
@@ -24,7 +27,9 @@ def test_rewrite_config_valid_creation():
 # ---------------------------------------------------------------------------
 def test_rewrite_config_strips_trailing_slashes():
     """RewriteConfig strips trailing slashes from both src and dst prefixes."""
-    cfg = RewriteConfig(src_prefix="s3a://src/warehouse/", dst_prefix="s3://dst/warehouse/")
+    cfg = RewriteConfig(
+        src_prefix="s3a://src/warehouse/", dst_prefix="s3://dst/warehouse/"
+    )
     assert cfg.src_prefix == "s3a://src/warehouse"
     assert cfg.dst_prefix == "s3://dst/warehouse"
 
@@ -72,10 +77,14 @@ def test_replace_prefix_unrelated_path_unchanged():
 # ---------------------------------------------------------------------------
 def test_config_allows_non_s3_source_prefix():
     """Source prefix can be any scheme — hdfs://, /mnt/, etc."""
-    cfg = RewriteConfig(src_prefix="hdfs://namenode/warehouse", dst_prefix="s3://bucket/warehouse")
+    cfg = RewriteConfig(
+        src_prefix="hdfs://namenode/warehouse", dst_prefix="s3://bucket/warehouse"
+    )
     assert cfg.src_prefix == "hdfs://namenode/warehouse"
 
-    cfg2 = RewriteConfig(src_prefix="/mnt/data/warehouse", dst_prefix="s3://bucket/warehouse")
+    cfg2 = RewriteConfig(
+        src_prefix="/mnt/data/warehouse", dst_prefix="s3://bucket/warehouse"
+    )
     assert cfg2.src_prefix == "/mnt/data/warehouse"
 
 
@@ -85,4 +94,6 @@ def test_config_allows_non_s3_source_prefix():
 def test_config_still_requires_s3_dst_prefix():
     """Destination prefix must still be s3:// or s3a://."""
     with pytest.raises(ValidationError):
-        RewriteConfig(src_prefix="hdfs://namenode/warehouse", dst_prefix="hdfs://other/warehouse")
+        RewriteConfig(
+            src_prefix="hdfs://namenode/warehouse", dst_prefix="hdfs://other/warehouse"
+        )

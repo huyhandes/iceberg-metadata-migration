@@ -6,13 +6,16 @@ Handles:
 
 Both functions return deep copies of the records — originals are never modified.
 """
+
 import copy
 from typing import Any
 
 from iceberg_migrate.rewrite.config import RewriteConfig
 
 
-def rewrite_manifest_list_records(records: list[dict[str, Any]], config: RewriteConfig) -> list[dict[str, Any]]:
+def rewrite_manifest_list_records(
+    records: list[dict[str, Any]], config: RewriteConfig
+) -> list[dict[str, Any]]:
     """Rewrite manifest_path in manifest list records.
 
     Returns deep copies of the records so the originals are not modified.
@@ -32,7 +35,9 @@ def rewrite_manifest_list_records(records: list[dict[str, Any]], config: Rewrite
     return result
 
 
-def rewrite_manifest_records(records: list[dict[str, Any]], config: RewriteConfig) -> list[dict[str, Any]]:
+def rewrite_manifest_records(
+    records: list[dict[str, Any]], config: RewriteConfig
+) -> list[dict[str, Any]]:
     """Rewrite data_file.file_path in manifest records.
 
     Returns deep copies of the records so the originals are not modified.

@@ -1,4 +1,5 @@
 """S3 utility functions for URI parsing and object access."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

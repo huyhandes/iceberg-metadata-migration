@@ -13,6 +13,7 @@ Coverage:
   Test 6: validation failure exit code 2: seed missing "location" field
   Test 7: v3 deletion vector: deletion_vector.path is rewritten in S3 output
 """
+
 from __future__ import annotations
 
 import io
@@ -95,15 +96,21 @@ def aws_env_v3():
 # ---------------------------------------------------------------------------
 
 
-def _invoke_migrate(extra_args: list[str] | None = None) -> "Result":
+def _invoke_migrate(extra_args: list[str] | None = None):
     """Invoke the migrate command with standard args + optional extras."""
     args = [
-        "--table-location", TABLE_LOCATION,
-        "--source-prefix", SRC_PREFIX,
-        "--dest-prefix", DST_PREFIX,
-        "--glue-database", GLUE_DB,
-        "--glue-table", GLUE_TABLE,
-        "--aws-region", "us-east-1",
+        "--table-location",
+        TABLE_LOCATION,
+        "--source-prefix",
+        SRC_PREFIX,
+        "--dest-prefix",
+        DST_PREFIX,
+        "--glue-database",
+        GLUE_DB,
+        "--glue-table",
+        GLUE_TABLE,
+        "--aws-region",
+        "us-east-1",
     ]
     if extra_args:
         args.extend(extra_args)
@@ -121,24 +128,26 @@ def test_dry_run_no_writes(aws_env):
 
     # Record S3 object keys before invoking CLI
     objects_before = {
-        obj["Key"]
-        for obj in s3.list_objects_v2(Bucket=bucket).get("Contents", [])
+        obj["Key"] for obj in s3.list_objects_v2(Bucket=bucket).get("Contents", [])
     }
 
     result = _invoke_migrate(["--dry-run"])
 
-    assert result.exit_code == 0, f"Expected exit 0, got {result.exit_code}. Output:\n{result.output}"
+    assert result.exit_code == 0, (
+        f"Expected exit 0, got {result.exit_code}. Output:\n{result.output}"
+    )
 
     # Output should mention "Dry run"
-    combined = (result.output or "") + (result.stderr or "" if hasattr(result, "stderr") else "")
+    combined = (result.output or "") + (
+        result.stderr or "" if hasattr(result, "stderr") else ""
+    )
     assert "Dry run" in combined or "dry run" in combined.lower(), (
         f"Expected 'Dry run' in output:\n{combined}"
     )
 
     # No new S3 objects should have been written
     objects_after = {
-        obj["Key"]
-        for obj in s3.list_objects_v2(Bucket=bucket).get("Contents", [])
+        obj["Key"] for obj in s3.list_objects_v2(Bucket=bucket).get("Contents", [])
     }
     assert objects_before == objects_after, (
         f"Dry-run should not write S3 objects. New objects: {objects_after - objects_before}"
@@ -160,7 +169,9 @@ def test_full_run_rewrites_and_registers(aws_env):
 
     result = _invoke_migrate()
 
-    assert result.exit_code == 0, f"Expected exit 0, got {result.exit_code}. Output:\n{result.output}"
+    assert result.exit_code == 0, (
+        f"Expected exit 0, got {result.exit_code}. Output:\n{result.output}"
+    )
 
     # Glue table should exist with correct metadata_location
     tables = glue.get_tables(DatabaseName=GLUE_DB)["TableList"]
@@ -180,8 +191,12 @@ def test_full_run_rewrites_and_registers(aws_env):
     content = obj["Body"].read().decode("utf-8")
     metadata = json.loads(content)
 
-    assert SRC_PREFIX not in content, "metadata.json should not contain SRC_PREFIX after rewrite"
-    assert DST_PREFIX in content, "metadata.json should contain DST_PREFIX after rewrite"
+    assert SRC_PREFIX not in content, (
+        "metadata.json should not contain SRC_PREFIX after rewrite"
+    )
+    assert DST_PREFIX in content, (
+        "metadata.json should contain DST_PREFIX after rewrite"
+    )
     assert metadata["location"].startswith(DST_PREFIX), (
         f"location should start with DST_PREFIX. Got: {metadata['location']}"
     )
@@ -219,7 +234,9 @@ def test_json_output_valid(aws_env):
     """--json produces valid parseable JSON on stdout with status=success."""
     result = _invoke_migrate(["--json"])
 
-    assert result.exit_code == 0, f"Expected exit 0, got {result.exit_code}. Output:\n{result.output}"
+    assert result.exit_code == 0, (
+        f"Expected exit 0, got {result.exit_code}. Output:\n{result.output}"
+    )
 
     # typer CliRunner mixes stdout and stderr into result.output.
     # In --json mode the CLI emits JSON to stdout and human summary to stderr.
@@ -235,7 +252,9 @@ def test_json_output_valid(aws_env):
     try:
         data = orjson.loads(json_str)
     except Exception as e:
-        pytest.fail(f"--json output does not contain valid JSON: {e}\nJSON portion:\n{json_str}")
+        pytest.fail(
+            f"--json output does not contain valid JSON: {e}\nJSON portion:\n{json_str}"
+        )
 
     assert data.get("status") == "success", (
         f"Expected status=success in JSON, got: {data.get('status')}"
@@ -253,7 +272,9 @@ def test_verbose_output_contains_file_counts(aws_env):
     """--verbose output contains per-file substitution counts."""
     result = _invoke_migrate(["--verbose"])
 
-    assert result.exit_code == 0, f"Expected exit 0, got {result.exit_code}. Output:\n{result.output}"
+    assert result.exit_code == 0, (
+        f"Expected exit 0, got {result.exit_code}. Output:\n{result.output}"
+    )
 
     output = result.output
     # verbose output should mention paths rewritten per file
@@ -314,7 +335,9 @@ def test_v3_deletion_vector_path_rewritten(aws_env_v3):
 
     result = _invoke_migrate()
 
-    assert result.exit_code == 0, f"Expected exit 0, got {result.exit_code}. Output:\n{result.output}"
+    assert result.exit_code == 0, (
+        f"Expected exit 0, got {result.exit_code}. Output:\n{result.output}"
+    )
 
     # Read the rewritten manifest from S3 and verify deletion_vector.path uses DST_PREFIX
     manifest_key = f"{table_prefix}/_migrated/metadata/manifest-001.avro"

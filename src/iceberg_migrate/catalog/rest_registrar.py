@@ -8,9 +8,9 @@ Authentication:
   - Bearer token (via token param)
   - No auth (for local dev)
 """
+
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import httpx
@@ -36,7 +36,9 @@ class RestRegistrar:
     def __init__(self, config: CatalogConfig):
         errors = config.validate()
         if errors:
-            raise CatalogError(f"Invalid REST catalog config: {'; '.join(errors)}", "rest")
+            raise CatalogError(
+                f"Invalid REST catalog config: {'; '.join(errors)}", "rest"
+            )
         self._config = config
         self._base_url = (config.uri or "").rstrip("/")
         self._prefix = config.warehouse or ""
@@ -51,7 +53,7 @@ class RestRegistrar:
             headers["Authorization"] = f"Bearer {self._config.token}"
         for k, v in self._config.properties.items():
             if k.startswith("header."):
-                headers[k[len("header."):]] = v
+                headers[k[len("header.") :]] = v
         return headers
 
     @property
@@ -116,7 +118,8 @@ class RestRegistrar:
             )
         elif resp.status_code in (401, 403):
             raise AuthenticationError(
-                f"Authentication failed for REST catalog (HTTP {resp.status_code}): {resp.text}", "rest"
+                f"Authentication failed for REST catalog (HTTP {resp.status_code}): {resp.text}",
+                "rest",
             )
         else:
             raise CatalogError(
@@ -143,7 +146,8 @@ class RestRegistrar:
 
         if resp.status_code in (401, 403):
             raise AuthenticationError(
-                f"Authentication failed for REST catalog (HTTP {resp.status_code})", "rest"
+                f"Authentication failed for REST catalog (HTTP {resp.status_code})",
+                "rest",
             )
 
         return resp.status_code == 200
@@ -161,7 +165,10 @@ class GlueAdapter:
         errors = config.validate()
         if errors:
             from iceberg_migrate.catalog.base import CatalogError
-            raise CatalogError(f"Invalid Glue catalog config: {'; '.join(errors)}", "glue")
+
+            raise CatalogError(
+                f"Invalid Glue catalog config: {'; '.join(errors)}", "glue"
+            )
 
         region = config.region or "us-east-1"
         self._glue_client = boto3.client("glue", region_name=region)

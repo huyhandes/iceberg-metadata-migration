@@ -1,4 +1,5 @@
 """Catalog adapters for Iceberg table registration."""
+
 from iceberg_migrate.catalog.base import (
     CatalogConfig,
     CatalogError,

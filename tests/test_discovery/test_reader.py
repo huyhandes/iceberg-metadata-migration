@@ -1,9 +1,9 @@
 """Tests for the metadata graph reader — load_avro_with_schema and load_metadata_graph."""
+
 import io
 import json
 
 import fastavro
-import pytest
 
 from iceberg_migrate.discovery.reader import load_avro_with_schema, load_metadata_graph
 from iceberg_migrate.models import IcebergMetadataGraph
@@ -16,6 +16,7 @@ TABLE_PREFIX = "warehouse/db/table"
 # ---------------------------------------------------------------------------
 # Avro fixture helpers
 # ---------------------------------------------------------------------------
+
 
 def make_manifest_list_avro(manifest_paths: list[str]) -> bytes:
     """Create minimal valid Avro bytes for a manifest list file."""
@@ -66,6 +67,7 @@ def make_manifest_avro(file_paths: list[str]) -> bytes:
 # S3 upload helpers
 # ---------------------------------------------------------------------------
 
+
 def upload_bytes(s3_client, key: str, data: bytes) -> None:
     s3_client.put_object(Bucket=BUCKET, Key=key, Body=data)
 
@@ -99,9 +101,7 @@ def test_load_metadata_graph_basic(s3_client):
     manifest_key = f"{TABLE_PREFIX}/metadata/manifest-1.avro"
 
     manifest_avro = make_manifest_avro(["s3://test-bucket/data/file1.parquet"])
-    manifest_list_avro = make_manifest_list_avro(
-        [f"s3://{BUCKET}/{manifest_key}"]
-    )
+    manifest_list_avro = make_manifest_list_avro([f"s3://{BUCKET}/{manifest_key}"])
 
     metadata = {
         "format-version": 2,
@@ -118,7 +118,11 @@ def test_load_metadata_graph_basic(s3_client):
         ],
     }
 
-    upload_bytes(s3_client, f"{TABLE_PREFIX}/metadata/v1.metadata.json", json.dumps(metadata).encode())
+    upload_bytes(
+        s3_client,
+        f"{TABLE_PREFIX}/metadata/v1.metadata.json",
+        json.dumps(metadata).encode(),
+    )
     upload_bytes(s3_client, manifest_list_key, manifest_list_avro)
     upload_bytes(s3_client, manifest_key, manifest_avro)
 
@@ -164,7 +168,11 @@ def test_load_metadata_graph_resolves_s3a_paths(s3_client):
         ],
     }
 
-    upload_bytes(s3_client, f"{TABLE_PREFIX}/metadata/v1.metadata.json", json.dumps(metadata).encode())
+    upload_bytes(
+        s3_client,
+        f"{TABLE_PREFIX}/metadata/v1.metadata.json",
+        json.dumps(metadata).encode(),
+    )
     upload_bytes(s3_client, manifest_list_key, manifest_list_avro)
     upload_bytes(s3_client, manifest_key, manifest_avro)
 
@@ -205,7 +213,11 @@ def test_avro_schema_preserved_in_graph(s3_client):
         ],
     }
 
-    upload_bytes(s3_client, f"{TABLE_PREFIX}/metadata/v1.metadata.json", json.dumps(metadata).encode())
+    upload_bytes(
+        s3_client,
+        f"{TABLE_PREFIX}/metadata/v1.metadata.json",
+        json.dumps(metadata).encode(),
+    )
     upload_bytes(s3_client, manifest_list_key, manifest_list_avro)
     upload_bytes(s3_client, manifest_key, manifest_avro)
 
@@ -230,7 +242,11 @@ def test_no_current_snapshot_returns_empty_graph(s3_client):
         "location": f"s3://{BUCKET}/{TABLE_PREFIX}",
     }
 
-    upload_bytes(s3_client, f"{TABLE_PREFIX}/metadata/v1.metadata.json", json.dumps(metadata).encode())
+    upload_bytes(
+        s3_client,
+        f"{TABLE_PREFIX}/metadata/v1.metadata.json",
+        json.dumps(metadata).encode(),
+    )
 
     graph = load_metadata_graph(s3_client, BUCKET, TABLE_PREFIX)
 

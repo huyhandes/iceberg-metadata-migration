@@ -3,6 +3,7 @@
 Defines the CatalogRegistrar protocol and CatalogConfig dataclass that all
 catalog adapters (Glue, REST, etc.) must implement.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

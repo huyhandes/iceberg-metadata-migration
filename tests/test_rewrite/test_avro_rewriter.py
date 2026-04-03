@@ -1,7 +1,7 @@
 """Tests for rewrite_manifest_list_records and rewrite_manifest_records."""
+
 import copy
 
-import pytest
 
 from iceberg_migrate.rewrite.config import RewriteConfig
 from iceberg_migrate.rewrite.avro_rewriter import (
@@ -121,7 +121,10 @@ def test_paths_not_matching_src_prefix_unchanged():
     m_records = [
         {
             "status": 1,
-            "data_file": {"file_path": non_matching_data_path, "file_size_in_bytes": 100},
+            "data_file": {
+                "file_path": non_matching_data_path,
+                "file_size_in_bytes": 100,
+            },
         }
     ]
     result_m = rewrite_manifest_records(m_records, CONFIG)

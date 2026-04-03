@@ -1,4 +1,5 @@
 """Tests for _migrated/ key remapping in RewriteEngine."""
+
 import io
 import json
 
@@ -40,34 +41,47 @@ def test_rewrite_engine_uses_migrated_keys(s3_client):
     manifest_key = f"{TABLE_PREFIX}/metadata/manifest-1.avro"
 
     manifest_schema = {
-        "type": "record", "name": "manifest_entry",
+        "type": "record",
+        "name": "manifest_entry",
         "fields": [
             {"name": "status", "type": "int"},
-            {"name": "data_file", "type": {
-                "type": "record", "name": "data_file",
-                "fields": [
-                    {"name": "file_path", "type": "string"},
-                    {"name": "file_size_in_bytes", "type": "long"},
-                ],
-            }},
+            {
+                "name": "data_file",
+                "type": {
+                    "type": "record",
+                    "name": "data_file",
+                    "fields": [
+                        {"name": "file_path", "type": "string"},
+                        {"name": "file_size_in_bytes", "type": "long"},
+                    ],
+                },
+            },
         ],
     }
-    manifest_records = [{"status": 1, "data_file": {
-        "file_path": "s3a://old-bucket/warehouse/db/table/data/part-0.parquet",
-        "file_size_in_bytes": 1024,
-    }}]
+    manifest_records = [
+        {
+            "status": 1,
+            "data_file": {
+                "file_path": "s3a://old-bucket/warehouse/db/table/data/part-0.parquet",
+                "file_size_in_bytes": 1024,
+            },
+        }
+    ]
     buf = io.BytesIO()
     fastavro.writer(buf, manifest_schema, manifest_records)
     s3_client.put_object(Bucket=BUCKET, Key=manifest_key, Body=buf.getvalue())
 
     ml_schema = {
-        "type": "record", "name": "manifest_file",
+        "type": "record",
+        "name": "manifest_file",
         "fields": [
             {"name": "manifest_path", "type": "string"},
             {"name": "manifest_length", "type": "long"},
         ],
     }
-    ml_records = [{"manifest_path": f"s3://{BUCKET}/{manifest_key}", "manifest_length": 1000}]
+    ml_records = [
+        {"manifest_path": f"s3://{BUCKET}/{manifest_key}", "manifest_length": 1000}
+    ]
     buf = io.BytesIO()
     fastavro.writer(buf, ml_schema, ml_records)
     s3_client.put_object(Bucket=BUCKET, Key=ml_key, Body=buf.getvalue())
@@ -85,6 +99,7 @@ def test_rewrite_engine_uses_migrated_keys(s3_client):
     )
 
     from iceberg_migrate.discovery.reader import load_metadata_graph
+
     graph = load_metadata_graph(s3_client, BUCKET, TABLE_PREFIX)
     config = RewriteConfig(src_prefix="s3a://old-bucket", dst_prefix="s3://new-bucket")
     engine = RewriteEngine(config)

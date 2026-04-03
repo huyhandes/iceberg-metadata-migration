@@ -5,7 +5,7 @@ Covers:
   - CatalogRegistrar protocol is runtime-checkable
   - Exception hierarchy
 """
-import pytest
+
 from iceberg_migrate.catalog.base import (
     CatalogConfig,
     CatalogError,
@@ -21,8 +21,8 @@ from iceberg_migrate.catalog.base import (
 # CatalogConfig validation
 # =========================================================================
 
-class TestCatalogConfigValidation:
 
+class TestCatalogConfigValidation:
     def test_valid_glue_config(self):
         cfg = CatalogConfig(catalog_type="glue")
         assert cfg.validate() == []
@@ -79,13 +79,17 @@ class TestCatalogConfigValidation:
 # CatalogRegistrar protocol
 # =========================================================================
 
-class TestCatalogRegistrarProtocol:
 
+class TestCatalogRegistrarProtocol:
     def test_concrete_class_satisfies_protocol(self):
         """A class implementing register_table + validate_connection satisfies the protocol."""
+
         class FakeRegistrar:
-            def register_table(self, namespace, table, metadata_location, metadata=None):
+            def register_table(
+                self, namespace, table, metadata_location, metadata=None
+            ):
                 return "created"
+
             def validate_connection(self):
                 return True
 
@@ -93,9 +97,13 @@ class TestCatalogRegistrarProtocol:
 
     def test_incomplete_class_does_not_satisfy_protocol(self):
         """A class missing methods does NOT satisfy the protocol."""
+
         class Incomplete:
-            def register_table(self, namespace, table, metadata_location, metadata=None):
+            def register_table(
+                self, namespace, table, metadata_location, metadata=None
+            ):
                 return "created"
+
             # Missing validate_connection
 
         assert not isinstance(Incomplete(), CatalogRegistrar)
@@ -105,8 +113,8 @@ class TestCatalogRegistrarProtocol:
 # Exception hierarchy
 # =========================================================================
 
-class TestExceptionHierarchy:
 
+class TestExceptionHierarchy:
     def test_catalog_error_has_catalog_type(self):
         err = CatalogError("test error", catalog_type="rest")
         assert err.catalog_type == "rest"

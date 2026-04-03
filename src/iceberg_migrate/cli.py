@@ -13,6 +13,7 @@ Exit codes per D-16:
   1 = partial failure (some writes succeeded, Glue failed, or mid-write exception)
   2 = fatal error (exception before any writes: discovery, rewrite, or validation)
 """
+
 from __future__ import annotations
 
 import os
@@ -43,6 +44,7 @@ from iceberg_migrate.validation.validator import validate_rewrite
 
 class FatalMigrationError(Exception):
     """Raised when the migration fails before any S3 writes (exit code 2)."""
+
     pass
 
 
@@ -52,6 +54,7 @@ class PartialMigrationError(Exception):
     Attributes:
         summary: MigrationSummary populated with completed write counts.
     """
+
     summary: MigrationSummary
 
     def __init__(self, message: str, summary: MigrationSummary):
@@ -68,10 +71,14 @@ app = typer.Typer(
 @app.command()
 def migrate(
     table_location: str = typer.Option(
-        ..., "--table-location", help="S3 URI of the Iceberg table root (e.g., s3://bucket/warehouse/db/table)"
+        ...,
+        "--table-location",
+        help="S3 URI of the Iceberg table root (e.g., s3://bucket/warehouse/db/table)",
     ),
     source_prefix: str = typer.Option(
-        ..., "--source-prefix", help="Original path prefix to replace (e.g., s3a://minio-bucket/warehouse)"
+        ...,
+        "--source-prefix",
+        help="Original path prefix to replace (e.g., s3a://minio-bucket/warehouse)",
     ),
     dest_prefix: str = typer.Option(
         ..., "--dest-prefix", help="New path prefix (e.g., s3://aws-bucket/warehouse)"
@@ -83,16 +90,24 @@ def migrate(
         False, "--verbose", help="Print per-file debug output"
     ),
     glue_database: str | None = typer.Option(
-        None, "--glue-database", help="Glue database name (derived from table_location if omitted)"
+        None,
+        "--glue-database",
+        help="Glue database name (derived from table_location if omitted)",
     ),
     glue_table: str | None = typer.Option(
-        None, "--glue-table", help="Glue table name (derived from table_location if omitted)"
+        None,
+        "--glue-table",
+        help="Glue table name (derived from table_location if omitted)",
     ),
     json_output: bool = typer.Option(
-        False, "--json", help="Emit machine-readable JSON to stdout; human summary goes to stderr"
+        False,
+        "--json",
+        help="Emit machine-readable JSON to stdout; human summary goes to stderr",
     ),
     aws_region: str | None = typer.Option(
-        None, "--aws-region", help="AWS region for Glue (falls back to AWS_DEFAULT_REGION env var)"
+        None,
+        "--aws-region",
+        help="AWS region for Glue (falls back to AWS_DEFAULT_REGION env var)",
     ),
 ) -> None:
     """Rewrite Iceberg metadata paths and register the table in AWS Glue Catalog.
@@ -157,6 +172,7 @@ def migrate(
     if not dry_run:
         try:
             from iceberg_migrate.writer.s3_writer import write_all
+
             write_result = write_all(s3_client, bucket, result)
             writes_completed = (
                 write_result.manifests_written
@@ -172,7 +188,11 @@ def migrate(
             # Register in Glue Catalog
             glue_client: GlueClient = boto3.client("glue", region_name=region)
             glue_action = register_or_update(
-                None, glue_client, glue_db, glue_tbl, metadata_s3_uri,
+                None,
+                glue_client,
+                glue_db,
+                glue_tbl,
+                metadata_s3_uri,
                 metadata=result.graph.metadata,
             )
         except Exception as exc:

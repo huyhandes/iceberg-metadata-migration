@@ -6,6 +6,7 @@ Ensures the multi-catalog refactoring does not break existing Glue functionality
   - Error handling for non-existent database
   - Schema conversion with various field types
 """
+
 import boto3
 import pytest
 from moto import mock_aws
@@ -41,7 +42,6 @@ class TestDeriveGlueNamesEdgeCases:
 
 
 class TestGlueRegistrationErrors:
-
     @mock_aws
     def test_register_in_nonexistent_database_raises(self):
         """Registering in a non-existent Glue database raises EntityNotFoundException."""
@@ -50,7 +50,10 @@ class TestGlueRegistrationErrors:
 
         with pytest.raises(Exception):  # EntityNotFoundException
             register_or_update(
-                None, glue, "nonexistent_db", "tbl",
+                None,
+                glue,
+                "nonexistent_db",
+                "tbl",
                 "s3://bucket/warehouse/db/tbl/metadata/v1.metadata.json",
             )
 
@@ -61,7 +64,10 @@ class TestGlueRegistrationErrors:
         glue.create_database(DatabaseInput={"Name": "testdb"})
 
         register_or_update(
-            None, glue, "testdb", "tbl",
+            None,
+            glue,
+            "testdb",
+            "tbl",
             "s3://bucket/warehouse/testdb/tbl/metadata/v1.metadata.json",
         )
 
@@ -75,7 +81,10 @@ class TestGlueRegistrationErrors:
         glue.create_database(DatabaseInput={"Name": "testdb"})
 
         register_or_update(
-            None, glue, "testdb", "tbl",
+            None,
+            glue,
+            "testdb",
+            "tbl",
             "s3://bucket/warehouse/testdb/tbl/metadata/v1.metadata.json",
         )
 
@@ -90,7 +99,10 @@ class TestGlueRegistrationErrors:
         glue.create_database(DatabaseInput={"Name": "testdb"})
 
         register_or_update(
-            None, glue, "testdb", "tbl",
+            None,
+            glue,
+            "testdb",
+            "tbl",
             "s3://bucket/warehouse/testdb/tbl/metadata/v1.metadata.json",
         )
 
@@ -111,7 +123,10 @@ class TestGlueRegistrationErrors:
 
         # Re-register
         register_or_update(
-            None, glue, "testdb", "tbl",
+            None,
+            glue,
+            "testdb",
+            "tbl",
             "s3://bucket/warehouse/testdb/tbl/metadata/v2.metadata.json",
         )
 

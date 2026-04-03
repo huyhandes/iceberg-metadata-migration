@@ -11,6 +11,7 @@ once all dependent files are safely in place).
 
 Does NOT catch exceptions — callers are responsible for mapping errors to exit codes.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -28,10 +29,11 @@ class WriteResult:
 
     Used by the output formatter (MigrationSummary) to report results.
     """
+
     manifests_written: int
     manifest_lists_written: int
     metadata_written: int  # always 1 on success
-    metadata_s3_key: str   # the S3 key that was written
+    metadata_s3_key: str  # the S3 key that was written
 
 
 def write_all(s3_client: S3Client, bucket: str, result: RewriteResult) -> WriteResult:

@@ -7,7 +7,6 @@ Tests cover:
   - derive_glue_names extracts (database, table) from a deep S3 path
   - derive_glue_names falls back to ("default", table) for shallow S3 paths
 """
-import pytest
 
 from iceberg_migrate.catalog.glue_registrar import register_or_update, derive_glue_names
 
@@ -47,7 +46,10 @@ class TestRegisterOrUpdate:
         # Verify table was created in Glue
         response = glue.get_table(DatabaseName="testdb", Name="mytable")
         params = response["Table"]["Parameters"]
-        assert params["metadata_location"] == "s3://mybucket/warehouse/testdb/mytable/metadata/v1.metadata.json"
+        assert (
+            params["metadata_location"]
+            == "s3://mybucket/warehouse/testdb/mytable/metadata/v1.metadata.json"
+        )
         assert params["table_type"].upper() == "ICEBERG"
 
     def test_register_existing_table_returns_updated(self, aws_clients):
@@ -76,7 +78,10 @@ class TestRegisterOrUpdate:
         # Verify metadata_location was updated
         response = glue.get_table(DatabaseName="testdb", Name="mytable")
         params = response["Table"]["Parameters"]
-        assert params["metadata_location"] == "s3://mybucket/warehouse/testdb/mytable/metadata/v2.metadata.json"
+        assert (
+            params["metadata_location"]
+            == "s3://mybucket/warehouse/testdb/mytable/metadata/v2.metadata.json"
+        )
 
     def test_update_preserves_existing_table_properties(self, aws_clients):
         """register_or_update preserves existing table properties while updating metadata_location."""
@@ -93,7 +98,9 @@ class TestRegisterOrUpdate:
 
         # Get the initial table properties
         response_before = glue.get_table(DatabaseName="testdb", Name="mytable")
-        initial_storage_descriptor = response_before["Table"].get("StorageDescriptor", {})
+        initial_storage_descriptor = response_before["Table"].get(
+            "StorageDescriptor", {}
+        )
         initial_partition_keys = response_before["Table"].get("PartitionKeys", [])
 
         # Second registration
@@ -107,7 +114,12 @@ class TestRegisterOrUpdate:
 
         # Verify StorageDescriptor and PartitionKeys are preserved
         response_after = glue.get_table(DatabaseName="testdb", Name="mytable")
-        assert response_after["Table"].get("StorageDescriptor", {}) == initial_storage_descriptor
-        assert response_after["Table"].get("PartitionKeys", []) == initial_partition_keys
+        assert (
+            response_after["Table"].get("StorageDescriptor", {})
+            == initial_storage_descriptor
+        )
+        assert (
+            response_after["Table"].get("PartitionKeys", []) == initial_partition_keys
+        )
         # table_type should still be ICEBERG
         assert response_after["Table"]["Parameters"]["table_type"].upper() == "ICEBERG"

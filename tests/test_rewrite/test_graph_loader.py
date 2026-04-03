@@ -1,13 +1,15 @@
 """Tests for collect_all_manifest_list_uris and load_full_graph."""
+
 import io
 import json
 
 import fastavro
-import pytest
 
 from iceberg_migrate.discovery.reader import load_metadata_graph
-from iceberg_migrate.models import IcebergMetadataGraph, ManifestListFile, ManifestFile
-from iceberg_migrate.rewrite.graph_loader import collect_all_manifest_list_uris, load_full_graph
+from iceberg_migrate.rewrite.graph_loader import (
+    collect_all_manifest_list_uris,
+    load_full_graph,
+)
 
 
 BUCKET = "test-bucket"
@@ -17,6 +19,7 @@ TABLE_PREFIX = "warehouse/db/table"
 # ---------------------------------------------------------------------------
 # Avro fixture helpers (same as test_reader.py)
 # ---------------------------------------------------------------------------
+
 
 def make_manifest_list_avro(manifest_paths: list[str]) -> bytes:
     """Create minimal valid Avro bytes for a manifest list file."""
@@ -133,18 +136,26 @@ def test_load_full_graph_loads_all_snapshots(s3_client):
     manifest_key_1 = f"{TABLE_PREFIX}/metadata/manifest-1.avro"
     manifest_key_2 = f"{TABLE_PREFIX}/metadata/manifest-2.avro"
 
-    upload_bytes(s3_client, ml_key_1, make_manifest_list_avro(
-        [f"s3://{BUCKET}/{manifest_key_1}"]
-    ))
-    upload_bytes(s3_client, ml_key_2, make_manifest_list_avro(
-        [f"s3://{BUCKET}/{manifest_key_2}"]
-    ))
-    upload_bytes(s3_client, manifest_key_1, make_manifest_avro(
-        [f"s3://{BUCKET}/data/part-0.parquet"]
-    ))
-    upload_bytes(s3_client, manifest_key_2, make_manifest_avro(
-        [f"s3://{BUCKET}/data/part-1.parquet"]
-    ))
+    upload_bytes(
+        s3_client,
+        ml_key_1,
+        make_manifest_list_avro([f"s3://{BUCKET}/{manifest_key_1}"]),
+    )
+    upload_bytes(
+        s3_client,
+        ml_key_2,
+        make_manifest_list_avro([f"s3://{BUCKET}/{manifest_key_2}"]),
+    )
+    upload_bytes(
+        s3_client,
+        manifest_key_1,
+        make_manifest_avro([f"s3://{BUCKET}/data/part-0.parquet"]),
+    )
+    upload_bytes(
+        s3_client,
+        manifest_key_2,
+        make_manifest_avro([f"s3://{BUCKET}/data/part-1.parquet"]),
+    )
 
     metadata = {
         "format-version": 2,
@@ -192,12 +203,14 @@ def test_load_full_graph_no_duplicate_manifest_lists(s3_client):
     ml_key = f"{TABLE_PREFIX}/metadata/snap-1-manifest-list.avro"
     manifest_key = f"{TABLE_PREFIX}/metadata/manifest-1.avro"
 
-    upload_bytes(s3_client, ml_key, make_manifest_list_avro(
-        [f"s3://{BUCKET}/{manifest_key}"]
-    ))
-    upload_bytes(s3_client, manifest_key, make_manifest_avro(
-        [f"s3://{BUCKET}/data/part-0.parquet"]
-    ))
+    upload_bytes(
+        s3_client, ml_key, make_manifest_list_avro([f"s3://{BUCKET}/{manifest_key}"])
+    )
+    upload_bytes(
+        s3_client,
+        manifest_key,
+        make_manifest_avro([f"s3://{BUCKET}/data/part-0.parquet"]),
+    )
 
     metadata = {
         "format-version": 2,
@@ -238,15 +251,21 @@ def test_load_full_graph_no_duplicate_manifests(s3_client):
     # Both manifest lists reference the same manifest file
     shared_manifest_key = f"{TABLE_PREFIX}/metadata/manifest-shared.avro"
 
-    upload_bytes(s3_client, ml_key_1, make_manifest_list_avro(
-        [f"s3://{BUCKET}/{shared_manifest_key}"]
-    ))
-    upload_bytes(s3_client, ml_key_2, make_manifest_list_avro(
-        [f"s3://{BUCKET}/{shared_manifest_key}"]
-    ))
-    upload_bytes(s3_client, shared_manifest_key, make_manifest_avro(
-        [f"s3://{BUCKET}/data/part-0.parquet"]
-    ))
+    upload_bytes(
+        s3_client,
+        ml_key_1,
+        make_manifest_list_avro([f"s3://{BUCKET}/{shared_manifest_key}"]),
+    )
+    upload_bytes(
+        s3_client,
+        ml_key_2,
+        make_manifest_list_avro([f"s3://{BUCKET}/{shared_manifest_key}"]),
+    )
+    upload_bytes(
+        s3_client,
+        shared_manifest_key,
+        make_manifest_avro([f"s3://{BUCKET}/data/part-0.parquet"]),
+    )
 
     metadata = {
         "format-version": 2,

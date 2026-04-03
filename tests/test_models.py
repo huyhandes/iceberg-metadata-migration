@@ -1,6 +1,6 @@
 """Tests for Pydantic BaseModel migration of iceberg_migrate.models."""
+
 from pydantic import BaseModel
-import pytest
 
 from iceberg_migrate.models import IcebergMetadataGraph, ManifestFile, ManifestListFile
 

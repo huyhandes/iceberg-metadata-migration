@@ -6,6 +6,7 @@ Covers:
   - v2 manifest records without deletion_vector (regression guard)
   - v3 manifest records with deletion_vector=None (null safety)
 """
+
 from iceberg_migrate.rewrite.avro_rewriter import rewrite_manifest_records
 from iceberg_migrate.rewrite.config import RewriteConfig
 

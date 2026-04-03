@@ -3,9 +3,9 @@
 Provides get_registrar() to instantiate the correct adapter based on
 CatalogConfig.catalog_type. Supports auto-detection from URI patterns.
 """
+
 from __future__ import annotations
 
-from typing import Any
 
 from iceberg_migrate.catalog.base import (
     CatalogConfig,
@@ -49,9 +49,11 @@ def get_registrar(config: CatalogConfig) -> CatalogRegistrar:
 
     if config.catalog_type == "glue":
         from iceberg_migrate.catalog.rest_registrar import GlueAdapter
+
         return GlueAdapter(config)
     elif config.catalog_type == "rest":
         from iceberg_migrate.catalog.rest_registrar import RestRegistrar
+
         return RestRegistrar(config)
     else:
         raise CatalogError(f"Unknown catalog type: {config.catalog_type}")

@@ -4,6 +4,7 @@ Supports both naming conventions used by Iceberg writers:
   - Old-style: v1.metadata.json, v2.metadata.json, v10.metadata.json
   - New-style: 00001-uuid.metadata.json, 00010-uuid.metadata.json
 """
+
 from __future__ import annotations
 
 import re
@@ -25,13 +26,13 @@ def _parse_version(filename: str) -> int:
     """
     # New-style: leading zero-padded integer followed by a dash
     # e.g. "00047-some-uuid.metadata.json" -> 47
-    new_style = re.match(r'^(\d+)-', filename)
+    new_style = re.match(r"^(\d+)-", filename)
     if new_style:
         return int(new_style.group(1))
 
     # Old-style: v<N>.metadata.json
     # e.g. "v3.metadata.json" -> 3
-    old_style = re.match(r'^v(\d+)\.metadata\.json$', filename)
+    old_style = re.match(r"^v(\d+)\.metadata\.json$", filename)
     if old_style:
         return int(old_style.group(1))
 

@@ -1,12 +1,11 @@
 """Tests for RewriteEngine orchestrating full path rewrite across all metadata layers."""
+
 import io
 import json
 
 import fastavro
-import pytest
 
 from iceberg_migrate.discovery.reader import load_avro_with_schema, load_metadata_graph
-from iceberg_migrate.models import IcebergMetadataGraph
 from iceberg_migrate.rewrite.config import RewriteConfig
 from iceberg_migrate.rewrite.engine import RewriteEngine, RewriteResult
 
@@ -17,8 +16,8 @@ SRC_PREFIX = f"s3a://minio-bucket/{TABLE_PREFIX}"
 DST_PREFIX = f"s3://aws-bucket/{TABLE_PREFIX}"
 
 CONFIG = RewriteConfig(
-    src_prefix=f"s3a://minio-bucket",
-    dst_prefix=f"s3://aws-bucket",
+    src_prefix="s3a://minio-bucket",
+    dst_prefix="s3://aws-bucket",
 )
 
 
@@ -30,6 +29,7 @@ def migrated_key(key: str) -> str:
 # ---------------------------------------------------------------------------
 # Avro fixture helpers
 # ---------------------------------------------------------------------------
+
 
 def make_manifest_list_avro(manifest_paths: list[str]) -> bytes:
     schema = {
@@ -82,18 +82,22 @@ def setup_bucket(s3_client) -> None:
     s3_client.create_bucket(Bucket=BUCKET)
 
 
-def build_simple_table(s3_client, snapshot_id=1, ml_filename="snap-1.avro",
-                        manifest_filename="manifest-1.avro",
-                        src_prefix="s3a://minio-bucket"):
+def build_simple_table(
+    s3_client,
+    snapshot_id=1,
+    ml_filename="snap-1.avro",
+    manifest_filename="manifest-1.avro",
+    src_prefix="s3a://minio-bucket",
+):
     """Set up a simple table with one snapshot and return metadata."""
     ml_key = f"{TABLE_PREFIX}/metadata/{ml_filename}"
     manifest_key = f"{TABLE_PREFIX}/metadata/{manifest_filename}"
     data_path = f"{src_prefix}/{TABLE_PREFIX}/data/part-0.parquet"
 
     upload_bytes(s3_client, manifest_key, make_manifest_avro([data_path]))
-    upload_bytes(s3_client, ml_key, make_manifest_list_avro(
-        [f"s3://{BUCKET}/{manifest_key}"]
-    ))
+    upload_bytes(
+        s3_client, ml_key, make_manifest_list_avro([f"s3://{BUCKET}/{manifest_key}"])
+    )
 
     metadata = {
         "format-version": 2,
@@ -147,18 +151,26 @@ def test_rewrite_engine_loads_all_snapshots(s3_client):
     manifest_key_1 = f"{TABLE_PREFIX}/metadata/manifest-1.avro"
     manifest_key_2 = f"{TABLE_PREFIX}/metadata/manifest-2.avro"
 
-    upload_bytes(s3_client, manifest_key_1, make_manifest_avro(
-        [f"s3a://minio-bucket/{TABLE_PREFIX}/data/part-0.parquet"]
-    ))
-    upload_bytes(s3_client, manifest_key_2, make_manifest_avro(
-        [f"s3a://minio-bucket/{TABLE_PREFIX}/data/part-1.parquet"]
-    ))
-    upload_bytes(s3_client, ml_key_1, make_manifest_list_avro(
-        [f"s3://{BUCKET}/{manifest_key_1}"]
-    ))
-    upload_bytes(s3_client, ml_key_2, make_manifest_list_avro(
-        [f"s3://{BUCKET}/{manifest_key_2}"]
-    ))
+    upload_bytes(
+        s3_client,
+        manifest_key_1,
+        make_manifest_avro([f"s3a://minio-bucket/{TABLE_PREFIX}/data/part-0.parquet"]),
+    )
+    upload_bytes(
+        s3_client,
+        manifest_key_2,
+        make_manifest_avro([f"s3a://minio-bucket/{TABLE_PREFIX}/data/part-1.parquet"]),
+    )
+    upload_bytes(
+        s3_client,
+        ml_key_1,
+        make_manifest_list_avro([f"s3://{BUCKET}/{manifest_key_1}"]),
+    )
+    upload_bytes(
+        s3_client,
+        ml_key_2,
+        make_manifest_list_avro([f"s3://{BUCKET}/{manifest_key_2}"]),
+    )
 
     metadata = {
         "format-version": 2,

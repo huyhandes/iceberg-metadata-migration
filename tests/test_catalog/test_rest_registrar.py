@@ -8,7 +8,7 @@ Covers:
   - REST spec compliance (correct HTTP methods, paths, payloads)
   - GlueAdapter: wraps existing glue_registrar (regression test)
 """
-import json
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -27,6 +27,7 @@ from iceberg_migrate.catalog.rest_registrar import RestRegistrar, GlueAdapter
 # =========================================================================
 # Helpers
 # =========================================================================
+
 
 def _rest_config(**overrides) -> CatalogConfig:
     defaults = dict(
@@ -51,14 +52,16 @@ def _mock_response(status_code=200, text="", json_data=None):
 # RestRegistrar: register_table
 # =========================================================================
 
-class TestRestRegisterTable:
 
+class TestRestRegisterTable:
     @patch("iceberg_migrate.catalog.rest_registrar.httpx.post")
     def test_register_table_success_returns_created(self, mock_post):
         """POST register returns 200 → 'created'."""
         mock_post.return_value = _mock_response(200)
         registrar = RestRegistrar(_rest_config())
-        result = registrar.register_table("mydb", "mytable", "s3://bucket/metadata/v1.metadata.json")
+        result = registrar.register_table(
+            "mydb", "mytable", "s3://bucket/metadata/v1.metadata.json"
+        )
         assert result == "created"
 
     @patch("iceberg_migrate.catalog.rest_registrar.httpx.post")
@@ -146,12 +149,13 @@ class TestRestRegisterTable:
 # RestRegistrar: connectivity / unreachable
 # =========================================================================
 
-class TestRestConnectivity:
 
+class TestRestConnectivity:
     @patch("iceberg_migrate.catalog.rest_registrar.httpx.post")
     def test_connection_refused_raises_unreachable(self, mock_post):
         """Connection refused → CatalogUnreachableError."""
         import httpx
+
         mock_post.side_effect = httpx.ConnectError("Connection refused")
         registrar = RestRegistrar(_rest_config())
 
@@ -162,6 +166,7 @@ class TestRestConnectivity:
     def test_timeout_raises_unreachable(self, mock_post):
         """Request timeout → CatalogUnreachableError."""
         import httpx
+
         mock_post.side_effect = httpx.TimeoutException("Timed out")
         registrar = RestRegistrar(_rest_config())
 
@@ -173,8 +178,8 @@ class TestRestConnectivity:
 # RestRegistrar: authentication scenarios
 # =========================================================================
 
-class TestRestAuthScenarios:
 
+class TestRestAuthScenarios:
     @patch("iceberg_migrate.catalog.rest_registrar.httpx.post")
     def test_bearer_token_sent_in_header(self, mock_post):
         """Token config → Authorization: Bearer <token> header."""
@@ -214,8 +219,8 @@ class TestRestAuthScenarios:
 # RestRegistrar: validate_connection
 # =========================================================================
 
-class TestRestValidateConnection:
 
+class TestRestValidateConnection:
     @patch("iceberg_migrate.catalog.rest_registrar.httpx.get")
     def test_validate_connection_success(self, mock_get):
         """GET /v1/config returns 200 → True."""
@@ -227,6 +232,7 @@ class TestRestValidateConnection:
     def test_validate_connection_unreachable(self, mock_get):
         """GET /v1/config connection error → CatalogUnreachableError."""
         import httpx
+
         mock_get.side_effect = httpx.ConnectError("refused")
         registrar = RestRegistrar(_rest_config())
 
@@ -247,8 +253,8 @@ class TestRestValidateConnection:
 # RestRegistrar: REST spec compliance
 # =========================================================================
 
-class TestRestSpecCompliance:
 
+class TestRestSpecCompliance:
     @patch("iceberg_migrate.catalog.rest_registrar.httpx.post")
     def test_uses_post_method(self, mock_post):
         """register_table must use HTTP POST."""
@@ -294,8 +300,8 @@ class TestRestSpecCompliance:
 # GlueAdapter: regression wrapper
 # =========================================================================
 
-class TestGlueAdapter:
 
+class TestGlueAdapter:
     def test_glue_adapter_register_new_table(self, aws_clients):
         """GlueAdapter.register_table creates a Glue table → 'created'."""
         s3, glue = aws_clients
@@ -305,7 +311,9 @@ class TestGlueAdapter:
         adapter._glue_client = glue
 
         result = adapter.register_table(
-            "testdb", "mytable", "s3://b/warehouse/testdb/mytable/metadata/v1.metadata.json"
+            "testdb",
+            "mytable",
+            "s3://b/warehouse/testdb/mytable/metadata/v1.metadata.json",
         )
         assert result == "created"
 
@@ -317,10 +325,14 @@ class TestGlueAdapter:
         adapter._glue_client = glue
 
         adapter.register_table(
-            "testdb", "mytable", "s3://b/warehouse/testdb/mytable/metadata/v1.metadata.json"
+            "testdb",
+            "mytable",
+            "s3://b/warehouse/testdb/mytable/metadata/v1.metadata.json",
         )
         result = adapter.register_table(
-            "testdb", "mytable", "s3://b/warehouse/testdb/mytable/metadata/v2.metadata.json"
+            "testdb",
+            "mytable",
+            "s3://b/warehouse/testdb/mytable/metadata/v2.metadata.json",
         )
         assert result == "updated"
 
@@ -344,8 +356,8 @@ class TestGlueAdapter:
 # RestRegistrar: init validation
 # =========================================================================
 
-class TestRestRegistrarInit:
 
+class TestRestRegistrarInit:
     def test_rest_without_uri_raises(self):
         """RestRegistrar with no URI raises CatalogError on init."""
         cfg = CatalogConfig(catalog_type="rest")

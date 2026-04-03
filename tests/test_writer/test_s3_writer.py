@@ -6,6 +6,7 @@ Tests:
   3. write_all with empty manifest/manifest_list dicts still writes metadata.json
   4. write_all raises on S3 put_object failure (no silent swallowing)
 """
+
 import boto3
 import pytest
 from moto import mock_aws

@@ -6,18 +6,21 @@ Covers:
   - Unknown catalog type raises CatalogError
   - Invalid config raises CatalogError
 """
+
 import pytest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from iceberg_migrate.catalog.base import CatalogConfig, CatalogError
 from iceberg_migrate.catalog.registry import detect_catalog_type, get_registrar
 
 
 class TestDetectCatalogType:
-
     def test_glue_aws_uri_detected_as_glue(self):
         """Glue REST endpoint URI → 'glue'."""
-        assert detect_catalog_type("https://glue.us-east-1.amazonaws.com/iceberg") == "glue"
+        assert (
+            detect_catalog_type("https://glue.us-east-1.amazonaws.com/iceberg")
+            == "glue"
+        )
 
     def test_plain_s3_uri_detected_as_glue(self):
         """Plain s3:// URI without REST catalog → 'glue' (backward compat)."""
@@ -45,7 +48,6 @@ class TestDetectCatalogType:
 
 
 class TestGetRegistrar:
-
     def test_glue_type_creates_glue_adapter(self):
         """get_registrar('glue') returns a GlueAdapter instance."""
         from iceberg_migrate.catalog.rest_registrar import GlueAdapter

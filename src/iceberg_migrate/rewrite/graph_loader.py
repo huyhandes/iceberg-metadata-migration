@@ -7,6 +7,7 @@ rewrite engine needs ALL snapshots' manifest lists and manifests loaded.
 This module extends an existing IcebergMetadataGraph by fetching any
 manifest lists and manifests not yet loaded.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -79,8 +80,12 @@ def load_full_graph(
             # But still need to check its manifest records for new manifests
             existing_ml = next(ml for ml in new_manifest_lists if ml.s3_key == ml_key)
             _load_manifests_from_records(
-                existing_ml.records, table_prefix, s3_client, bucket,
-                loaded_m_keys, new_manifests,
+                existing_ml.records,
+                table_prefix,
+                s3_client,
+                bucket,
+                loaded_m_keys,
+                new_manifests,
             )
             continue
 
@@ -97,8 +102,12 @@ def load_full_graph(
 
         # Load manifests referenced by this manifest list
         _load_manifests_from_records(
-            ml_records, table_prefix, s3_client, bucket,
-            loaded_m_keys, new_manifests,
+            ml_records,
+            table_prefix,
+            s3_client,
+            bucket,
+            loaded_m_keys,
+            new_manifests,
         )
 
     return IcebergMetadataGraph(

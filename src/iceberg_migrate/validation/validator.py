@@ -10,6 +10,7 @@ Usage:
     if not result.passed:
         raise RuntimeError(f"Validation failed: {result.errors}")
 """
+
 from typing import Any
 
 import orjson
@@ -106,9 +107,7 @@ def _check_structural(metadata_bytes: bytes, errors: list[str]) -> bool:
 
     missing = REQUIRED_METADATA_FIELDS - set(m.keys())
     if missing:
-        errors.append(
-            f"Required fields missing from metadata.json: {sorted(missing)}"
-        )
+        errors.append(f"Required fields missing from metadata.json: {sorted(missing)}")
         return False
 
     return True
@@ -154,6 +153,4 @@ def _check_counts(
             f"Manifest list count mismatch: {ml_before} before, {ml_after} after"
         )
     if m_before != m_after:
-        errors.append(
-            f"Manifest count mismatch: {m_before} before, {m_after} after"
-        )
+        errors.append(f"Manifest count mismatch: {m_before} before, {m_after} after")

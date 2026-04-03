@@ -7,13 +7,16 @@ Handles all path-bearing field groups per D-05, D-06, D-07:
   - metadata["statistics"][*]["statistics-path"] if present
   - metadata["partition-statistics"][*]["statistics-path"] if present
 """
+
 import copy
 from typing import Any
 
 from iceberg_migrate.rewrite.config import RewriteConfig
 
 
-def rewrite_metadata_json(metadata: dict[str, Any], config: RewriteConfig) -> dict[str, Any]:
+def rewrite_metadata_json(
+    metadata: dict[str, Any], config: RewriteConfig
+) -> dict[str, Any]:
     """Return a new metadata dict with all path fields rewritten.
 
     Rewrites (per CONTEXT.md D-05 through D-07):

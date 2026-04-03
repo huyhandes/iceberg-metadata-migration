@@ -17,6 +17,7 @@ metadata file via S3 FileIO (needs s3fs or pyarrow installed). The direct Glue A
 sets the same Iceberg-specific Parameters that PyIceberg would set (table_type, metadata_location),
 ensuring Athena and EMR compatibility while removing the FileIO dependency.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
@@ -58,7 +59,9 @@ def derive_glue_names(table_location: str) -> tuple[str, str]:
     elif len(parts) == 1:
         return "default", parts[-1]
     else:
-        raise ValueError(f"Cannot derive Glue names from table_location: {table_location!r}")
+        raise ValueError(
+            f"Cannot derive Glue names from table_location: {table_location!r}"
+        )
 
 
 ICEBERG_TYPE_MAP = {
@@ -86,7 +89,10 @@ def _iceberg_schema_to_glue_columns(metadata: dict) -> list[dict]:
     """
     schemas = metadata.get("schemas", [])
     current_schema_id = metadata.get("current-schema-id", 0)
-    schema = next((s for s in schemas if s.get("schema-id") == current_schema_id), schemas[0] if schemas else None)
+    schema = next(
+        (s for s in schemas if s.get("schema-id") == current_schema_id),
+        schemas[0] if schemas else None,
+    )
     if not schema:
         return []
 
@@ -96,15 +102,19 @@ def _iceberg_schema_to_glue_columns(metadata: dict) -> list[dict]:
         if isinstance(field_type, dict):
             field_type = field_type.get("type", "string")
         glue_type = ICEBERG_TYPE_MAP.get(field_type, "string")
-        columns.append({
-            "Name": field["name"],
-            "Type": glue_type,
-            "Parameters": {
-                "iceberg.field.id": str(field.get("id", 0)),
-                "iceberg.field.optional": str(not field.get("required", False)).lower(),
-                "iceberg.field.current": "true",
-            },
-        })
+        columns.append(
+            {
+                "Name": field["name"],
+                "Type": glue_type,
+                "Parameters": {
+                    "iceberg.field.id": str(field.get("id", 0)),
+                    "iceberg.field.optional": str(
+                        not field.get("required", False)
+                    ).lower(),
+                    "iceberg.field.current": "true",
+                },
+            }
+        )
     return columns
 
 
@@ -143,28 +153,33 @@ def register_or_update(
     try:
         # Create new Glue table with Iceberg-specific properties (D-05)
         # Extract table location from metadata URI (strip /metadata/XXX.metadata.json)
-        table_s3_location = metadata_s3_uri.rsplit("/metadata/", 1)[0].replace("/_migrated", "")
+        table_s3_location = metadata_s3_uri.rsplit("/metadata/", 1)[0].replace(
+            "/_migrated", ""
+        )
         columns = _iceberg_schema_to_glue_columns(metadata) if metadata else []
-        create_input = cast("TableInputTypeDef", {
-            "Name": table,
-            "TableType": "EXTERNAL_TABLE",
-            "Parameters": {
-                "table_type": "ICEBERG",
-                "metadata_location": metadata_s3_uri,
-            },
-            "StorageDescriptor": {
-                "Location": table_s3_location,
-                "AdditionalLocations": [f"{table_s3_location}/data"],
-                "Columns": columns,
-                "Compressed": False,
-                "InputFormat": "org.apache.hadoop.mapred.FileInputFormat",
-                "OutputFormat": "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat",
-                "SerdeInfo": {
-                    "SerializationLibrary": "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
+        create_input = cast(
+            "TableInputTypeDef",
+            {
+                "Name": table,
+                "TableType": "EXTERNAL_TABLE",
+                "Parameters": {
+                    "table_type": "ICEBERG",
+                    "metadata_location": metadata_s3_uri,
                 },
+                "StorageDescriptor": {
+                    "Location": table_s3_location,
+                    "AdditionalLocations": [f"{table_s3_location}/data"],
+                    "Columns": columns,
+                    "Compressed": False,
+                    "InputFormat": "org.apache.hadoop.mapred.FileInputFormat",
+                    "OutputFormat": "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat",
+                    "SerdeInfo": {
+                        "SerializationLibrary": "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
+                    },
+                },
+                "PartitionKeys": [],
             },
-            "PartitionKeys": [],
-        })
+        )
         glue_client.create_table(DatabaseName=database, TableInput=create_input)
         return "created"
     except glue_client.exceptions.AlreadyExistsException:
@@ -175,17 +190,20 @@ def register_or_update(
 
         # Reconstruct TableInput: preserve existing StorageDescriptor and PartitionKeys,
         # only update metadata_location and table_type in Parameters
-        update_input = cast("TableInputTypeDef", {
-            "Name": table,
-            "StorageDescriptor": glue_table.get("StorageDescriptor", {}),
-            "PartitionKeys": glue_table.get("PartitionKeys", []),
-            "TableType": "EXTERNAL_TABLE",
-            "Parameters": {
-                **glue_table.get("Parameters", {}),
-                "metadata_location": metadata_s3_uri,
-                "table_type": "ICEBERG",
+        update_input = cast(
+            "TableInputTypeDef",
+            {
+                "Name": table,
+                "StorageDescriptor": glue_table.get("StorageDescriptor", {}),
+                "PartitionKeys": glue_table.get("PartitionKeys", []),
+                "TableType": "EXTERNAL_TABLE",
+                "Parameters": {
+                    **glue_table.get("Parameters", {}),
+                    "metadata_location": metadata_s3_uri,
+                    "table_type": "ICEBERG",
+                },
             },
-        })
+        )
         glue_client.update_table(
             DatabaseName=database,
             TableInput=update_input,

@@ -1,4 +1,5 @@
 """Tests for the metadata locator — numeric version sort and edge cases."""
+
 import pytest
 
 from iceberg_migrate.discovery.locator import _parse_version, find_latest_metadata
@@ -20,11 +21,14 @@ def _upload(s3_client, keys: list[str]) -> None:
 def test_old_style_numeric_sort(s3_client):
     """find_latest_metadata returns v10, NOT v2 (lexicographic loser wins numerically)."""
     prefix = "warehouse/db/table"
-    _upload(s3_client, [
-        f"{prefix}/metadata/v1.metadata.json",
-        f"{prefix}/metadata/v2.metadata.json",
-        f"{prefix}/metadata/v10.metadata.json",
-    ])
+    _upload(
+        s3_client,
+        [
+            f"{prefix}/metadata/v1.metadata.json",
+            f"{prefix}/metadata/v2.metadata.json",
+            f"{prefix}/metadata/v10.metadata.json",
+        ],
+    )
     result = find_latest_metadata(s3_client, BUCKET, prefix)
     assert result == f"{prefix}/metadata/v10.metadata.json"
 
@@ -38,11 +42,14 @@ def test_new_style_numeric_sort(s3_client):
     uuid1 = "abc123"
     uuid2 = "def456"
     uuid3 = "ghi789"
-    _upload(s3_client, [
-        f"{prefix}/metadata/00001-{uuid1}.metadata.json",
-        f"{prefix}/metadata/00010-{uuid2}.metadata.json",
-        f"{prefix}/metadata/00002-{uuid3}.metadata.json",
-    ])
+    _upload(
+        s3_client,
+        [
+            f"{prefix}/metadata/00001-{uuid1}.metadata.json",
+            f"{prefix}/metadata/00010-{uuid2}.metadata.json",
+            f"{prefix}/metadata/00002-{uuid3}.metadata.json",
+        ],
+    )
     result = find_latest_metadata(s3_client, BUCKET, prefix)
     assert result == f"{prefix}/metadata/00010-{uuid2}.metadata.json"
 
@@ -53,10 +60,13 @@ def test_new_style_numeric_sort(s3_client):
 def test_mixed_styles(s3_client):
     """find_latest_metadata returns 00010-uuid when both styles are present and 10 > 5."""
     prefix = "warehouse/db/table"
-    _upload(s3_client, [
-        f"{prefix}/metadata/v5.metadata.json",
-        f"{prefix}/metadata/00010-uuid-abc.metadata.json",
-    ])
+    _upload(
+        s3_client,
+        [
+            f"{prefix}/metadata/v5.metadata.json",
+            f"{prefix}/metadata/00010-uuid-abc.metadata.json",
+        ],
+    )
     result = find_latest_metadata(s3_client, BUCKET, prefix)
     assert result == f"{prefix}/metadata/00010-uuid-abc.metadata.json"
 

@@ -6,20 +6,21 @@ Covers:
   VAL-03: Manifest count preservation — counts match before and after rewrite
   D-15:   All three checks must pass for passed=True
 """
+
 import io
 
 import fastavro
 import orjson
-import pytest
 
 from iceberg_migrate.models import IcebergMetadataGraph, ManifestListFile, ManifestFile
 from iceberg_migrate.rewrite.engine import RewriteResult
-from iceberg_migrate.validation.validator import validate_rewrite, ValidationResult
+from iceberg_migrate.validation.validator import validate_rewrite
 
 
 # ---------------------------------------------------------------------------
 # Helpers to build minimal Avro bytes
 # ---------------------------------------------------------------------------
+
 
 def _make_manifest_list_avro(manifest_paths: list[str]) -> bytes:
     schema = {
@@ -136,7 +137,15 @@ def _build_passing_result():
             ManifestFile(
                 s3_key="warehouse/db/table/metadata/manifest-1.avro",
                 avro_schema=_M_SCHEMA,
-                records=[{"status": 1, "data_file": {"file_path": data_path, "file_size_in_bytes": 1024}}],
+                records=[
+                    {
+                        "status": 1,
+                        "data_file": {
+                            "file_path": data_path,
+                            "file_size_in_bytes": 1024,
+                        },
+                    }
+                ],
             )
         ],
     )
@@ -175,7 +184,15 @@ def _build_passing_result():
             ManifestFile(
                 s3_key="warehouse/db/table/metadata/manifest-1.avro",
                 avro_schema=_M_SCHEMA,
-                records=[{"status": 1, "data_file": {"file_path": orig_data_path, "file_size_in_bytes": 1024}}],
+                records=[
+                    {
+                        "status": 1,
+                        "data_file": {
+                            "file_path": orig_data_path,
+                            "file_size_in_bytes": 1024,
+                        },
+                    }
+                ],
             )
         ],
     )
@@ -186,6 +203,7 @@ def _build_passing_result():
 # ===========================================================================
 # VAL-01: Byte-level scan tests
 # ===========================================================================
+
 
 # Test 1: Passing case — no source prefix in any rewritten bytes
 def test_val01_no_residual_prefix_passes():
@@ -206,7 +224,12 @@ def test_val01_residual_in_metadata_bytes_fails():
         "format-version": 2,
         "location": f"{SRC_PREFIX}/db/table",  # Not rewritten!
         "current-snapshot-id": 1,
-        "snapshots": [{"snapshot-id": 1, "manifest-list": f"{DST_PREFIX}/db/table/metadata/snap-1.avro"}],
+        "snapshots": [
+            {
+                "snapshot-id": 1,
+                "manifest-list": f"{DST_PREFIX}/db/table/metadata/snap-1.avro",
+            }
+        ],
     }
     bad_result = RewriteResult(
         graph=result.graph,
@@ -225,7 +248,9 @@ def test_val01_residual_in_manifest_list_avro_bytes_fails():
     """validate_rewrite catches source prefix in manifest list Avro bytes."""
     original_graph, result = _build_passing_result()
     # Inject source prefix into manifest list Avro bytes
-    bad_ml_bytes = _make_manifest_list_avro([f"{SRC_PREFIX}/db/table/metadata/manifest-1.avro"])
+    bad_ml_bytes = _make_manifest_list_avro(
+        [f"{SRC_PREFIX}/db/table/metadata/manifest-1.avro"]
+    )
     bad_result = RewriteResult(
         graph=result.graph,
         metadata_bytes=result.metadata_bytes,
@@ -257,6 +282,7 @@ def test_val01_residual_in_manifest_avro_bytes_fails():
 # ===========================================================================
 # VAL-02: Structural validation tests
 # ===========================================================================
+
 
 # Test 5: Structural check passes with valid JSON + required fields
 def test_val02_structural_passes_with_valid_metadata():
@@ -330,6 +356,7 @@ def test_val02_structural_fails_missing_snapshots():
 # VAL-03: Manifest count tests
 # ===========================================================================
 
+
 # Test 9: Manifest count matches (3 before, 3 after)
 def test_val03_manifest_count_matches_passes():
     """validate_rewrite returns passed=True when manifest count matches."""
@@ -338,7 +365,15 @@ def test_val03_manifest_count_matches_passes():
         ManifestFile(
             s3_key=f"warehouse/db/table/metadata/manifest-{i}.avro",
             avro_schema=_M_SCHEMA,
-            records=[{"status": 1, "data_file": {"file_path": f"{DST_PREFIX}/data/part-{i}.parquet", "file_size_in_bytes": 1024}}],
+            records=[
+                {
+                    "status": 1,
+                    "data_file": {
+                        "file_path": f"{DST_PREFIX}/data/part-{i}.parquet",
+                        "file_size_in_bytes": 1024,
+                    },
+                }
+            ],
         )
         for i in range(3)
     ]
@@ -346,7 +381,13 @@ def test_val03_manifest_count_matches_passes():
         ManifestListFile(
             s3_key="warehouse/db/table/metadata/snap-1.avro",
             avro_schema=_ML_SCHEMA,
-            records=[{"manifest_path": f"{DST_PREFIX}/manifest-{i}.avro", "manifest_length": 1000} for i in range(3)],
+            records=[
+                {
+                    "manifest_path": f"{DST_PREFIX}/manifest-{i}.avro",
+                    "manifest_length": 1000,
+                }
+                for i in range(3)
+            ],
         )
     ]
     metadata = {
@@ -362,9 +403,13 @@ def test_val03_manifest_count_matches_passes():
         manifests=manifests,
     )
     # Build bytes — no src prefix
-    ml_bytes = _make_manifest_list_avro([f"{DST_PREFIX}/manifest-{i}.avro" for i in range(3)])
+    ml_bytes = _make_manifest_list_avro(
+        [f"{DST_PREFIX}/manifest-{i}.avro" for i in range(3)]
+    )
     m_bytes_map = {
-        f"warehouse/db/table/metadata/manifest-{i}.avro": _make_manifest_avro([f"{DST_PREFIX}/data/part-{i}.parquet"])
+        f"warehouse/db/table/metadata/manifest-{i}.avro": _make_manifest_avro(
+            [f"{DST_PREFIX}/data/part-{i}.parquet"]
+        )
         for i in range(3)
     }
     result = RewriteResult(
@@ -385,7 +430,12 @@ def test_val03_manifest_count_matches_passes():
     ]
     original_graph = IcebergMetadataGraph(
         metadata_s3_key="warehouse/db/table/metadata/v1.metadata.json",
-        metadata={"format-version": 2, "location": f"{SRC_PREFIX}/db/table", "current-snapshot-id": 1, "snapshots": []},
+        metadata={
+            "format-version": 2,
+            "location": f"{SRC_PREFIX}/db/table",
+            "current-snapshot-id": 1,
+            "snapshots": [],
+        },
         manifest_lists=manifest_lists,
         manifests=orig_manifests,
     )
@@ -411,7 +461,8 @@ def test_val03_manifest_count_mismatch_fails():
         metadata_s3_key=original_graph.metadata_s3_key,
         metadata=original_graph.metadata,
         manifest_lists=original_graph.manifest_lists,
-        manifests=original_graph.manifests + [extra_manifest],  # 2 manifests in original
+        manifests=original_graph.manifests
+        + [extra_manifest],  # 2 manifests in original
     )
 
     # result.graph still has 1 manifest (count mismatch: 2 before, 1 after)
@@ -419,7 +470,10 @@ def test_val03_manifest_count_mismatch_fails():
     assert validation.passed is False
     assert validation.manifest_count_before == 2
     assert validation.manifest_count_after == 1
-    assert any("manifest count" in e.lower() or "mismatch" in e.lower() for e in validation.errors)
+    assert any(
+        "manifest count" in e.lower() or "mismatch" in e.lower()
+        for e in validation.errors
+    )
 
 
 # Test 11: Manifest list count differs
@@ -450,6 +504,7 @@ def test_val03_manifest_list_count_mismatch_fails():
 # Integration: D-15 — all three checks must pass
 # ===========================================================================
 
+
 # Test 12: All three checks pass
 def test_d15_all_checks_pass():
     """validate_rewrite returns passed=True only when ALL three checks pass."""
@@ -471,7 +526,9 @@ def test_d15_errors_are_human_readable():
     # VAL-01: src prefix still in metadata_bytes
     # VAL-02: not valid JSON
     # VAL-03: manifest count mismatch
-    bad_bytes = SRC_PREFIX.encode() + b" some content"  # Not valid JSON, contains src prefix
+    bad_bytes = (
+        SRC_PREFIX.encode() + b" some content"
+    )  # Not valid JSON, contains src prefix
 
     extra_manifest = ManifestFile(
         s3_key="warehouse/db/table/metadata/manifest-extra.avro",

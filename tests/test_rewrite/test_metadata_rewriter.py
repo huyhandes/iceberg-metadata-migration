@@ -1,7 +1,7 @@
 """Tests for rewrite_metadata_json — rewrites all path-bearing fields in metadata.json."""
+
 import copy
 
-import pytest
 
 from iceberg_migrate.rewrite.config import RewriteConfig
 from iceberg_migrate.rewrite.metadata_rewriter import rewrite_metadata_json
@@ -65,8 +65,12 @@ def test_rewrite_metadata_json_all_metadata_log_entries():
         "format-version": 2,
         "location": "s3a://src-bucket/warehouse/db/table",
         "metadata-log": [
-            {"metadata-file": "s3a://src-bucket/warehouse/db/table/metadata/v1.metadata.json"},
-            {"metadata-file": "s3a://src-bucket/warehouse/db/table/metadata/v2.metadata.json"},
+            {
+                "metadata-file": "s3a://src-bucket/warehouse/db/table/metadata/v1.metadata.json"
+            },
+            {
+                "metadata-file": "s3a://src-bucket/warehouse/db/table/metadata/v2.metadata.json"
+            },
         ],
     }
     result = rewrite_metadata_json(metadata, CONFIG)

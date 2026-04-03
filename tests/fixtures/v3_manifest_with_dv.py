@@ -10,6 +10,7 @@ deletion_vector.path field.
 
 Returns the metadata.json S3 key for reference.
 """
+
 from __future__ import annotations
 
 import io

@@ -1,4 +1,5 @@
 """RewriteConfig: Pydantic model for source-to-destination path prefix rewriting."""
+
 from pydantic import BaseModel, field_validator
 
 
@@ -35,7 +36,9 @@ class RewriteConfig(BaseModel):
         if not v:
             raise ValueError("Prefix must not be empty")
         if not (v.startswith("s3://") or v.startswith("s3a://")):
-            raise ValueError(f"Destination prefix must start with s3:// or s3a://: {v!r}")
+            raise ValueError(
+                f"Destination prefix must start with s3:// or s3a://: {v!r}"
+            )
         return v.rstrip("/")
 
     def replace_prefix(self, path: str) -> str:
@@ -53,5 +56,5 @@ class RewriteConfig(BaseModel):
             path if it does not match.
         """
         if path.startswith(self.src_prefix):
-            return self.dst_prefix + path[len(self.src_prefix):]
+            return self.dst_prefix + path[len(self.src_prefix) :]
         return path
