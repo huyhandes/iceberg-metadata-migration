@@ -39,10 +39,10 @@ class RestRegistrar:
             raise CatalogError(
                 f"Invalid REST catalog config: {'; '.join(errors)}", "rest"
             )
-        self._config = config
-        self._base_url = (config.uri or "").rstrip("/")
-        self._prefix = config.warehouse or ""
-        self._headers = self._build_headers()
+        self._config: CatalogConfig = config
+        self._base_url: str = (config.uri or "").rstrip("/")
+        self._prefix: str = config.warehouse or ""
+        self._headers: dict[str, str] = self._build_headers()
 
     def _build_headers(self) -> dict[str, str]:
         """Build HTTP headers including auth."""
@@ -171,8 +171,8 @@ class GlueAdapter:
             )
 
         region = config.region or "us-east-1"
-        self._glue_client = boto3.client("glue", region_name=region)
-        self._config = config
+        self._glue_client: Any = boto3.client("glue", region_name=region)
+        self._config: CatalogConfig = config
 
     def register_table(
         self,
