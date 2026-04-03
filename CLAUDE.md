@@ -1,18 +1,28 @@
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
 
-**Iceberg Table Migration Tool**
+**Iceberg Metadata Migration Tool**
 
-A Python CLI tool that runs as a post-processor after AWS DataSync to fix hardcoded data paths in Apache Iceberg v2/v3 table metadata. When DataSync copies Iceberg tables from on-prem MinIO to AWS S3, the metadata files still reference the old MinIO paths — this tool rewrites them and registers the table in AWS Glue Catalog so downstream engines (Athena, EMR) can query the migrated tables.
+A Python CLI tool that rewrites hardcoded paths in Apache Iceberg (v2/v3) table metadata and registers the migrated table in AWS Glue Catalog.
 
-**Core Value:** Correctly rewrite all hardcoded paths in Iceberg metadata so migrated tables are queryable on AWS without data loss or corruption.
+Runs as a **post-processing step** after data has landed on AWS S3 — regardless of how it got there. Works with any data-moving solution: AWS DataSync, rclone, `aws s3 sync/cp`, HDFS copy, or any S3-compatible transfer tool.
+
+**The tool does not care about the source system.** It only requires:
+1. The Iceberg table data is already on S3
+2. The metadata files contain stale paths from the original source (could be `s3a://`, `hdfs://`, `/mnt/...`, anything)
+3. Those paths need rewriting to match the S3 location
+
+**Non-destructive:** Migrated metadata is written to a `_migrated/` subdirectory under the table location. Original metadata files are never modified and can be safely overwritten by subsequent sync runs.
+
+**Destination:** AWS S3 + AWS Glue Catalog.
 
 ### Constraints
 
 - **Tech stack**: Python (POC) — fast iteration, pyiceberg ecosystem available
 - **Iceberg versions**: Must handle both v2 and v3 metadata formats
 - **AWS integration**: Glue Catalog for table registration
-- **Data safety**: Must not corrupt metadata — validate before overwriting originals
+- **Data safety**: Non-destructive — original metadata is never overwritten
+- **Source agnostic**: Source paths can be any scheme (s3a://, hdfs://, local paths, etc.)
 <!-- GSD:project-end -->
 
 <!-- GSD:stack-start source:research/STACK.md -->
