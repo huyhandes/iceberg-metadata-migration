@@ -3,11 +3,9 @@ import io
 import json
 
 import fastavro
-import pytest
 
-from iceberg_migrate.models import IcebergMetadataGraph
 from iceberg_migrate.rewrite.config import RewriteConfig
-from iceberg_migrate.rewrite.engine import RewriteEngine, RewriteResult, remap_key_to_migrated
+from iceberg_migrate.rewrite.engine import RewriteEngine, remap_key_to_migrated
 
 BUCKET = "test-bucket"
 TABLE_PREFIX = "warehouse/db/table"

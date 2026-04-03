@@ -175,7 +175,7 @@ def test_full_run_rewrites_and_registers(aws_env):
     )
 
     # metadata.json in S3 should contain DST_PREFIX, not SRC_PREFIX
-    metadata_key = f"{table_prefix}/metadata/00001-abc.metadata.json"
+    metadata_key = f"{table_prefix}/_migrated/metadata/00001-abc.metadata.json"
     obj = s3.get_object(Bucket=bucket, Key=metadata_key)
     content = obj["Body"].read().decode("utf-8")
     metadata = json.loads(content)
@@ -280,7 +280,7 @@ def test_validation_failure_exit_code_2():
         # Note: rewrite_metadata_json adds "location" even if missing (via m.get("location",""))
         # so we omit "snapshots" which cannot be auto-added during rewrite.
         table_prefix = TABLE_PREFIX
-        metadata_key = f"{table_prefix}/metadata/00001-abc.metadata.json"
+        metadata_key = f"{table_prefix}/_migrated/metadata/00001-abc.metadata.json"
 
         bad_metadata = {
             "format-version": 2,
@@ -317,7 +317,7 @@ def test_v3_deletion_vector_path_rewritten(aws_env_v3):
     assert result.exit_code == 0, f"Expected exit 0, got {result.exit_code}. Output:\n{result.output}"
 
     # Read the rewritten manifest from S3 and verify deletion_vector.path uses DST_PREFIX
-    manifest_key = f"{table_prefix}/metadata/manifest-001.avro"
+    manifest_key = f"{table_prefix}/_migrated/metadata/manifest-001.avro"
     obj = s3.get_object(Bucket=bucket, Key=manifest_key)
     manifest_bytes = obj["Body"].read()
 
