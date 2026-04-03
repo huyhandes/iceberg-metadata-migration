@@ -61,7 +61,7 @@ class PartialMigrationError(Exception):
 
 app = typer.Typer(
     name="iceberg-migrate",
-    help="Rewrite Iceberg metadata paths after DataSync migration.",
+    help="Rewrite Iceberg metadata paths after data migration from any source to AWS S3.",
 )
 
 
@@ -95,7 +95,12 @@ def migrate(
         None, "--aws-region", help="AWS region for Glue (falls back to AWS_DEFAULT_REGION env var)"
     ),
 ) -> None:
-    """Rewrite Iceberg metadata paths from source prefix to destination prefix."""
+    """Rewrite Iceberg metadata paths and register the table in AWS Glue Catalog.
+
+    Runs as a post-processing step after data has landed on AWS S3 (via DataSync,
+    rclone, aws s3 sync/cp, or any transfer tool). Creates non-destructive migrated
+    metadata under a _migrated/ subdirectory — originals are never modified.
+    """
     start = time.monotonic()
 
     # --- Setup ---

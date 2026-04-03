@@ -143,7 +143,7 @@ def register_or_update(
     try:
         # Create new Glue table with Iceberg-specific properties (D-05)
         # Extract table location from metadata URI (strip /metadata/XXX.metadata.json)
-        table_s3_location = metadata_s3_uri.rsplit("/metadata/", 1)[0]
+        table_s3_location = metadata_s3_uri.rsplit("/metadata/", 1)[0].replace("/_migrated", "")
         columns = _iceberg_schema_to_glue_columns(metadata) if metadata else []
         create_input = cast("TableInputTypeDef", {
             "Name": table,
