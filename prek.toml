@@ -1,0 +1,11 @@
+[[pre-commit]]
+name = "ruff-fix"
+run = "uv run ruff check --fix . && uv run ruff format ."
+
+[[pre-commit]]
+name = "basedpyright"
+run = "uv run basedpyright src/"
+
+[[pre-commit]]
+name = "pytest"
+run = "uv run pytest tests/ -x -q"
