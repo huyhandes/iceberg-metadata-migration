@@ -8,7 +8,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket  = "YOUR_TEST_BUCKET"
+    bucket  = "YOUR_TF_STATE_BUCKET"
     key     = "terraform/iceberg-migration.tfstate"
     region  = "YOUR_REGION"
     # Set via AWS_PROFILE env var or -backend-config="profile=yourprofile"
