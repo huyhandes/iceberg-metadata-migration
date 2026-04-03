@@ -15,7 +15,7 @@ from iceberg_migrate.rewrite.engine import RewriteResult
 from iceberg_migrate.writer.s3_writer import WriteResult, write_all
 
 BUCKET = "test-bucket"
-METADATA_KEY = "warehouse/db/table/metadata/v1.metadata.json"
+METADATA_KEY = "warehouse/db/table/_migrated/metadata/v1.metadata.json"
 
 
 def _make_result(
@@ -49,11 +49,11 @@ def s3(s3_client):
 def test_write_all_writes_all_objects(s3):
     """Test 1: All objects written to S3 after write_all call."""
     manifest_bytes = {
-        "warehouse/db/table/metadata/m1.avro": b"manifest-1",
-        "warehouse/db/table/metadata/m2.avro": b"manifest-2",
+        "warehouse/db/table/_migrated/metadata/m1.avro": b"manifest-1",
+        "warehouse/db/table/_migrated/metadata/m2.avro": b"manifest-2",
     }
     manifest_list_bytes = {
-        "warehouse/db/table/metadata/snap-1.avro": b"manifest-list-1",
+        "warehouse/db/table/_migrated/metadata/snap-1.avro": b"manifest-list-1",
     }
     result = _make_result(
         manifest_bytes=manifest_bytes,
@@ -80,13 +80,13 @@ def test_write_all_writes_all_objects(s3):
 def test_write_all_returns_correct_counts(s3):
     """Test 2: write_all returns WriteResult with correct counts."""
     manifest_bytes = {
-        "warehouse/db/table/metadata/m1.avro": b"manifest-1",
-        "warehouse/db/table/metadata/m2.avro": b"manifest-2",
-        "warehouse/db/table/metadata/m3.avro": b"manifest-3",
+        "warehouse/db/table/_migrated/metadata/m1.avro": b"manifest-1",
+        "warehouse/db/table/_migrated/metadata/m2.avro": b"manifest-2",
+        "warehouse/db/table/_migrated/metadata/m3.avro": b"manifest-3",
     }
     manifest_list_bytes = {
-        "warehouse/db/table/metadata/snap-1.avro": b"manifest-list-1",
-        "warehouse/db/table/metadata/snap-2.avro": b"manifest-list-2",
+        "warehouse/db/table/_migrated/metadata/snap-1.avro": b"manifest-list-1",
+        "warehouse/db/table/_migrated/metadata/snap-2.avro": b"manifest-list-2",
     }
     result = _make_result(
         manifest_bytes=manifest_bytes,
@@ -125,7 +125,7 @@ def test_write_all_raises_on_s3_failure():
         bad_client = boto3.client("s3", region_name="us-east-1")
         # Do NOT create the bucket — any put_object call should raise
         result = _make_result(
-            manifest_bytes={"warehouse/db/table/m1.avro": b"data"},
+            manifest_bytes={"warehouse/db/table/_migrated/metadata/m1.avro": b"data"},
         )
         with pytest.raises(Exception):
             write_all(bad_client, "nonexistent-bucket", result)

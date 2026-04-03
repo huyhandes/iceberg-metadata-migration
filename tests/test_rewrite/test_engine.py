@@ -22,6 +22,11 @@ CONFIG = RewriteConfig(
 )
 
 
+def migrated_key(key: str) -> str:
+    """Convert a key to its _migrated/ equivalent."""
+    return key.replace(TABLE_PREFIX + "/", TABLE_PREFIX + "/_migrated/", 1)
+
+
 # ---------------------------------------------------------------------------
 # Avro fixture helpers
 # ---------------------------------------------------------------------------
@@ -228,8 +233,8 @@ def test_rewrite_engine_manifest_list_avro_roundtrip(s3_client):
     engine = RewriteEngine(CONFIG)
     result = engine.rewrite(graph, s3_client, BUCKET, TABLE_PREFIX)
 
-    assert ml_key in result.manifest_list_bytes
-    rewritten_bytes = result.manifest_list_bytes[ml_key]
+    assert migrated_key(ml_key) in result.manifest_list_bytes
+    rewritten_bytes = result.manifest_list_bytes[migrated_key(ml_key)]
 
     # Read back the serialized Avro bytes
     schema, records = load_avro_with_schema(rewritten_bytes)
@@ -253,8 +258,8 @@ def test_rewrite_engine_manifest_avro_roundtrip(s3_client):
     engine = RewriteEngine(CONFIG)
     result = engine.rewrite(graph, s3_client, BUCKET, TABLE_PREFIX)
 
-    assert manifest_key in result.manifest_bytes
-    rewritten_bytes = result.manifest_bytes[manifest_key]
+    assert migrated_key(manifest_key) in result.manifest_bytes
+    rewritten_bytes = result.manifest_bytes[migrated_key(manifest_key)]
 
     # Read back the serialized Avro bytes
     schema, records = load_avro_with_schema(rewritten_bytes)
