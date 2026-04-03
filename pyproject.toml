@@ -24,7 +24,7 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/iceberg_migrate"]
 
-[tool.pyright]
+[tool.basedpyright]
 include = ["src"]
 reportCallInDefaultInitializer = false
 reportExplicitAny = false
@@ -45,4 +45,6 @@ dev = [
     "boto3-stubs[s3,glue]",
     "pyarrow>=14.0",
     "pyiceberg[s3fs,sql-sqlite]==0.11.1",
+    "basedpyright>=1.29",
+    "prek>=0.1",
 ]
