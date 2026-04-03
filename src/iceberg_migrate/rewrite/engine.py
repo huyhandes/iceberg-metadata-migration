@@ -50,6 +50,19 @@ class RewriteResult:
         self.manifest_bytes = manifest_bytes
 
 
+def remap_key_to_migrated(key: str, table_prefix: str) -> str:
+    """Remap an S3 key to the _migrated/ subdirectory under the table root.
+
+    Given table_prefix='warehouse/db/table' and key='warehouse/db/table/metadata/v1.metadata.json',
+    returns 'warehouse/db/table/_migrated/metadata/v1.metadata.json'.
+    """
+    prefix = table_prefix.rstrip("/")
+    if key.startswith(prefix + "/"):
+        suffix = key[len(prefix) + 1:]
+        return f"{prefix}/_migrated/{suffix}"
+    return f"{prefix}/_migrated/{key}"
+
+
 class RewriteEngine:
     """Orchestrates path rewriting across all metadata layers.
 
@@ -122,19 +135,39 @@ class RewriteEngine:
             rewritten_m_list.append(new_m)
             m_bytes_map[m.s3_key] = self._serialize_avro(m.avro_schema, new_records)
 
-        # Step 5: Build rewritten graph
+        # Step 6: Remap all keys to _migrated/ paths
+        migrated_metadata_key = remap_key_to_migrated(full_graph.metadata_s3_key, table_prefix)
+
+        migrated_ml_bytes: dict[str, bytes] = {}
+        migrated_ml_list: list[ManifestListFile] = []
+        for ml in rewritten_ml_list:
+            new_key = remap_key_to_migrated(ml.s3_key, table_prefix)
+            migrated_ml_bytes[new_key] = ml_bytes_map[ml.s3_key]
+            migrated_ml_list.append(ManifestListFile(
+                s3_key=new_key, avro_schema=ml.avro_schema, records=ml.records,
+            ))
+
+        migrated_m_bytes: dict[str, bytes] = {}
+        migrated_m_list: list[ManifestFile] = []
+        for m in rewritten_m_list:
+            new_key = remap_key_to_migrated(m.s3_key, table_prefix)
+            migrated_m_bytes[new_key] = m_bytes_map[m.s3_key]
+            migrated_m_list.append(ManifestFile(
+                s3_key=new_key, avro_schema=m.avro_schema, records=m.records,
+            ))
+
         rewritten_graph = IcebergMetadataGraph(
-            metadata_s3_key=full_graph.metadata_s3_key,
+            metadata_s3_key=migrated_metadata_key,
             metadata=rewritten_metadata,
-            manifest_lists=rewritten_ml_list,
-            manifests=rewritten_m_list,
+            manifest_lists=migrated_ml_list,
+            manifests=migrated_m_list,
         )
 
         return RewriteResult(
             graph=rewritten_graph,
             metadata_bytes=metadata_bytes,
-            manifest_list_bytes=ml_bytes_map,
-            manifest_bytes=m_bytes_map,
+            manifest_list_bytes=migrated_ml_bytes,
+            manifest_bytes=migrated_m_bytes,
         )
 
     @staticmethod
