@@ -36,9 +36,6 @@ reportUnknownArgumentType = false
 reportUnknownParameterType = false
 reportInvalidCast = false
 reportMissingTypeArgument = false
-reportUnusedParameter = false
-reportUnannotatedClassAttribute = false
-reportUnusedImport = "warning"
 
 [dependency-groups]
 dev = [

@@ -92,6 +92,8 @@ class CatalogRegistrar(Protocol):
 class CatalogError(Exception):
     """Base exception for catalog operations."""
 
+    catalog_type: str
+
     def __init__(self, message: str, catalog_type: str = "unknown"):
         super().__init__(message)
         self.catalog_type = catalog_type

@@ -11,9 +11,12 @@ Authentication:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
+
+if TYPE_CHECKING:
+    from mypy_boto3_glue import GlueClient
 
 from iceberg_migrate.catalog.base import (
     AuthenticationError,
@@ -89,6 +92,7 @@ class RestRegistrar:
             CatalogUnreachableError: If endpoint is unreachable.
             CatalogError: For any other failure.
         """
+        del metadata  # REST catalogs read metadata from metadata_location directly
         url = f"{self._v1_base}/namespaces/{namespace}/register"
         body = {
             "name": table,
@@ -171,7 +175,7 @@ class GlueAdapter:
             )
 
         region = config.region or "us-east-1"
-        self._glue_client: Any = boto3.client("glue", region_name=region)
+        self._glue_client: GlueClient = boto3.client("glue", region_name=region)
         self._config: CatalogConfig = config
 
     def register_table(
