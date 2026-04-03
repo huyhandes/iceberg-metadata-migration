@@ -890,7 +890,7 @@ dev = [
     { name = "moto", extra = ["glue", "s3"] },
     { name = "prek" },
     { name = "pyarrow" },
-    { name = "pyiceberg", extra = ["s3fs", "sql-sqlite"] },
+    { name = "pyiceberg", extra = ["hive", "s3fs", "sql-sqlite"] },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -914,7 +914,7 @@ dev = [
     { name = "moto", extras = ["s3", "glue"], specifier = ">=5.0" },
     { name = "prek", specifier = ">=0.1" },
     { name = "pyarrow", specifier = ">=14.0" },
-    { name = "pyiceberg", extras = ["s3fs", "sql-sqlite"], specifier = "==0.11.1" },
+    { name = "pyiceberg", extras = ["s3fs", "sql-sqlite", "hive"], specifier = "==0.11.1" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "ruff", specifier = ">=0.4" },
 ]
@@ -1893,6 +1893,9 @@ wheels = [
 glue = [
     { name = "boto3" },
 ]
+hive = [
+    { name = "thrift" },
+]
 s3fs = [
     { name = "s3fs" },
 ]
@@ -2274,6 +2277,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/47/c6/ee486fd809e357697
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d7/c1/eb8f9debc45d3b7918a32ab756658a0904732f75e555402972246b0b8e71/tenacity-9.1.4-py3-none-any.whl", hash = "sha256:6095a360c919085f28c6527de529e76a06ad89b23659fa881ae0649b867a9d55", size = 28926, upload-time = "2026-02-07T10:45:32.24Z" },
 ]
+
+[[package]]
+name = "thrift"
+version = "0.22.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b2/c2/db648cc10dd7d15560f2eafd92a27cd280811924696e0b4a87175fb28c94/thrift-0.22.0.tar.gz", hash = "sha256:42e8276afbd5f54fe1d364858b6877bc5e5a4a5ed69f6a005b94ca4918fe1466", size = 62303, upload-time = "2025-05-23T20:49:33.309Z" }
 
 [[package]]
 name = "tomli"
