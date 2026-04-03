@@ -32,10 +32,10 @@ def test_rewrite_config_strips_trailing_slashes():
 # ---------------------------------------------------------------------------
 # Test 3: Invalid scheme raises ValidationError
 # ---------------------------------------------------------------------------
-def test_rewrite_config_invalid_scheme_raises():
-    """RewriteConfig raises ValidationError for non-s3:// and non-s3a:// prefixes."""
+def test_rewrite_config_invalid_dst_scheme_raises():
+    """RewriteConfig raises ValidationError for non-s3 destination prefix."""
     with pytest.raises(ValidationError):
-        RewriteConfig(src_prefix="http://bad", dst_prefix="s3://good")
+        RewriteConfig(src_prefix="s3a://src/warehouse", dst_prefix="http://bad")
 
 
 # ---------------------------------------------------------------------------
@@ -65,3 +65,24 @@ def test_replace_prefix_unrelated_path_unchanged():
     cfg = RewriteConfig(src_prefix=SRC, dst_prefix=DST)
     result = cfg.replace_prefix("s3://unrelated/path")
     assert result == "s3://unrelated/path"
+
+
+# ---------------------------------------------------------------------------
+# Test 7: Source prefix allows non-S3 schemes
+# ---------------------------------------------------------------------------
+def test_config_allows_non_s3_source_prefix():
+    """Source prefix can be any scheme — hdfs://, /mnt/, etc."""
+    cfg = RewriteConfig(src_prefix="hdfs://namenode/warehouse", dst_prefix="s3://bucket/warehouse")
+    assert cfg.src_prefix == "hdfs://namenode/warehouse"
+
+    cfg2 = RewriteConfig(src_prefix="/mnt/data/warehouse", dst_prefix="s3://bucket/warehouse")
+    assert cfg2.src_prefix == "/mnt/data/warehouse"
+
+
+# ---------------------------------------------------------------------------
+# Test 8: Destination prefix still requires S3 scheme
+# ---------------------------------------------------------------------------
+def test_config_still_requires_s3_dst_prefix():
+    """Destination prefix must still be s3:// or s3a://."""
+    with pytest.raises(ValidationError):
+        RewriteConfig(src_prefix="hdfs://namenode/warehouse", dst_prefix="hdfs://other/warehouse")

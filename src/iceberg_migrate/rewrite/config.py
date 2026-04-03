@@ -20,14 +20,22 @@ class RewriteConfig(BaseModel):
     src_prefix: str  # e.g. "s3a://minio-bucket/warehouse"
     dst_prefix: str  # e.g. "s3://aws-bucket/warehouse"
 
-    @field_validator("src_prefix", "dst_prefix")
+    @field_validator("src_prefix")
     @classmethod
-    def must_be_s3_uri(cls, v: str) -> str:
-        """Validate prefix scheme and strip trailing slash."""
+    def normalize_src_prefix(cls, v: str) -> str:
+        """Strip trailing slash from source prefix. Any scheme allowed."""
+        if not v:
+            raise ValueError("Prefix must not be empty")
+        return v.rstrip("/")
+
+    @field_validator("dst_prefix")
+    @classmethod
+    def must_be_s3_dst(cls, v: str) -> str:
+        """Validate destination prefix is S3 scheme and strip trailing slash."""
         if not v:
             raise ValueError("Prefix must not be empty")
         if not (v.startswith("s3://") or v.startswith("s3a://")):
-            raise ValueError(f"Prefix must start with s3:// or s3a://: {v!r}")
+            raise ValueError(f"Destination prefix must start with s3:// or s3a://: {v!r}")
         return v.rstrip("/")
 
     def replace_prefix(self, path: str) -> str:
