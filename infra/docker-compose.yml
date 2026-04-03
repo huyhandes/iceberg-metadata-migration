@@ -1,4 +1,5 @@
 services:
+  # Always-on: shared object store
   minio:
     image: minio/minio:latest
     ports:
@@ -27,6 +28,63 @@ services:
       mc mb local/warehouse --ignore-existing &&
       echo 'Bucket warehouse created'
       "
+
+  # Profile: rest — Lakekeeper Iceberg REST catalog
+  lakekeeper:
+    image: lakekeeper/lakekeeper:latest
+    profiles: [rest]
+    ports:
+      - "8181:8181"
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      LAKEKEEPER__BASE_URI: http://0.0.0.0:8181
+      LAKEKEEPER__CATALOG__STORAGE__S3__ENDPOINT: http://minio:9000
+      LAKEKEEPER__CATALOG__STORAGE__S3__BUCKET: warehouse
+      LAKEKEEPER__CATALOG__STORAGE__S3__REGION: us-east-1
+      LAKEKEEPER__CATALOG__STORAGE__S3__ACCESS_KEY: minioadmin
+      LAKEKEEPER__CATALOG__STORAGE__S3__SECRET_KEY: minioadmin
+      LAKEKEEPER__CATALOG__STORAGE__S3__PATH_STYLE_ACCESS: "true"
+      LAKEKEEPER__CATALOG__STORAGE__TYPE: s3
+
+  # Profile: hms — Hive Metastore
+  hms-postgres:
+    image: postgres:16-alpine
+    profiles: [hms]
+    environment:
+      POSTGRES_DB: metastore
+      POSTGRES_USER: hive
+      POSTGRES_PASSWORD: hive
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hive -d metastore"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  hive-metastore:
+    image: apache/hive:4.0.1
+    profiles: [hms]
+    ports:
+      - "9083:9083"
+    depends_on:
+      hms-postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      SERVICE_NAME: metastore
+      DB_DRIVER: postgres
+      SERVICE_OPTS: >-
+        -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
+        -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://hms-postgres:5432/metastore
+        -Djavax.jdo.option.ConnectionUserName=hive
+        -Djavax.jdo.option.ConnectionPassword=hive
+        -Dfs.s3a.endpoint=http://minio:9000
+        -Dfs.s3a.access.key=minioadmin
+        -Dfs.s3a.secret.key=minioadmin
+        -Dfs.s3a.path.style.access=true
+        -Dfs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
 
 volumes:
   minio-data:
