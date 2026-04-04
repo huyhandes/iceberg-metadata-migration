@@ -132,6 +132,10 @@ services:
       LAKEKEEPER_URI: http://lakekeeper:8181/catalog
       LAKEKEEPER_MGMT_URI: http://lakekeeper:8181/management
       UV_PROJECT_ENVIRONMENT: /seed-venv
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://minio:9000
     command: uv run python -m infra.seed.seed_rest
 
   # Profile: seed-sql — run SQL seed inside Docker network
@@ -148,6 +152,9 @@ services:
     environment:
       MINIO_ENDPOINT: http://minio:9000
       UV_PROJECT_ENVIRONMENT: /seed-venv
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_DEFAULT_REGION: us-east-1
     command: uv run python -m infra.seed.seed_sql
 
   # Profile: seed-hms — run HMS seed inside Docker network
@@ -167,6 +174,9 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       HMS_URI: thrift://hive-metastore:9083
       UV_PROJECT_ENVIRONMENT: /seed-venv
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_DEFAULT_REGION: us-east-1
     command: uv run python -m infra.seed.seed_hms
 
 volumes:

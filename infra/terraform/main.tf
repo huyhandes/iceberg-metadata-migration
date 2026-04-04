@@ -18,7 +18,21 @@ provider "aws" {
   # Set via AWS_PROFILE env var
 }
 
-# S3 bucket created manually — see terraform.tfvars for the bucket name
+# S3 bucket for Iceberg test data and Athena results
+resource "aws_s3_bucket" "iceberg_test" {
+  bucket = var.s3_bucket
+
+  tags = {
+    Project = "iceberg-migration-tool"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "iceberg_test" {
+  bucket = aws_s3_bucket.iceberg_test.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
 
 # Glue Catalog Database
 resource "aws_glue_catalog_database" "iceberg_test" {

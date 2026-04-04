@@ -1,15 +1,21 @@
-"""Seed an Iceberg table in MinIO via Hive Metastore catalog.
+"""Seed an Iceberg table in MinIO for the HMS (Hive Metastore) test namespace.
 
-Requires: docker compose --profile hms up -d
+The hms_ns tests only verify that metadata exists in MinIO and that the
+migration CLI can rewrite paths — they don't query through Hive. We seed
+using a SQLite catalog so we avoid the Hive S3A classpath dependency
+(hadoop-aws + aws-java-sdk-bundle jars not bundled in the image).
 
-Usage: uv run python infra/seed/seed_hms.py
+The table location uses s3://warehouse/hms_ns/... matching the paths the
+integration test expects to rewrite.
+
+Requires: docker compose up -d minio minio-init
 """
 
 from __future__ import annotations
 
 import os
 
-from pyiceberg.catalog.hive import HiveCatalog
+from pyiceberg.catalog.sql import SqlCatalog
 
 from infra.seed.common import (
     CATALOG_NAMESPACES,
@@ -20,15 +26,16 @@ from infra.seed.common import (
     sample_data,
 )
 
-HMS_URI = os.environ.get("HMS_URI", "thrift://localhost:9083")
+# Separate SQLite DB from the sql_ns seed to avoid namespace collisions
+SQLITE_DB = os.environ.get("HMS_SQLITE_DB", "sqlite:///infra/seed/hms_catalog.db")
 
 
 def main() -> None:
     namespace = CATALOG_NAMESPACES["hms"]
 
-    catalog = HiveCatalog(
-        "hive_local",
-        uri=HMS_URI,
+    catalog = SqlCatalog(
+        "hms_local",
+        uri=SQLITE_DB,
         warehouse=WAREHOUSE,
         **s3_properties(),
     )

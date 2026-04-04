@@ -13,6 +13,7 @@ import boto3
 import requests
 from botocore.client import Config
 from pyiceberg.catalog.rest import RestCatalog
+from pyiceberg.io.pyarrow import PyArrowFileIO
 
 from infra.seed.common import (
     CATALOG_NAMESPACES,
@@ -127,6 +128,17 @@ def main() -> None:
         schema=TABLE_SCHEMA,
         location=f"{WAREHOUSE}/{namespace}/{TABLE_NAME}",
     )
+    # Lakekeeper uses S3V4RestSigner (remote signing) for writes, but PyIceberg's
+    # FsspecFileIO only registers the signer on the sync boto3 client while s3fs uses
+    # the async aiobotocore client — so signed headers are never sent and MinIO returns
+    # 403. Bypass by replacing the table's FileIO with PyArrowFileIO which uses
+    # credentials directly without going through remote signing.
+    table.io = PyArrowFileIO({
+        "s3.endpoint": MINIO_ENDPOINT,
+        "s3.access-key-id": MINIO_ACCESS_KEY,
+        "s3.secret-access-key": MINIO_SECRET_KEY,
+        "s3.region": MINIO_REGION,
+    })
     table.append(sample_data())
 
     # Verify
