@@ -13,6 +13,7 @@ Key design decisions:
 
 from __future__ import annotations
 
+import gzip
 import io
 from typing import TYPE_CHECKING, Any, cast
 
@@ -103,6 +104,10 @@ def load_metadata_graph(
     # Step 1: locate latest metadata.json
     metadata_key = find_latest_metadata(s3_client, bucket, table_prefix)
     metadata_bytes = get_s3_object_bytes(s3_client, bucket, metadata_key)
+    # Some Iceberg writers (e.g. Lakekeeper) gzip-compress metadata files and name
+    # them *.gz.metadata.json — decompress before JSON parsing.
+    if metadata_bytes[:2] == b"\x1f\x8b":
+        metadata_bytes = gzip.decompress(metadata_bytes)
     metadata_dict: dict[str, Any] = orjson.loads(metadata_bytes)
 
     graph = IcebergMetadataGraph(

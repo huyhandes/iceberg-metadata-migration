@@ -31,6 +31,51 @@ from iceberg_migrate.rewrite.avro_rewriter import (
 )
 
 
+def _remap_snapshot_manifest_lists(metadata: dict[str, Any]) -> dict[str, Any]:
+    """Remap manifest-list paths in snapshots from metadata/ to _migrated/metadata/.
+
+    After src→dst prefix rewrite, manifest-list paths point to
+    <table_root>/metadata/<filename>.  The actual rewritten Avro files are
+    written to <table_root>/_migrated/metadata/<filename>.  This function
+    updates the references so Athena follows the rewritten (migrated) copies.
+    """
+    import copy
+
+    m = copy.deepcopy(metadata)
+    dst_table_root = m.get("location", "").rstrip("/")
+    if not dst_table_root:
+        return m
+    old_prefix = dst_table_root + "/metadata/"
+    new_prefix = dst_table_root + "/_migrated/metadata/"
+    for snap in m.get("snapshots", []):
+        if "manifest-list" in snap:
+            path = snap["manifest-list"]
+            if path.startswith(old_prefix):
+                snap["manifest-list"] = new_prefix + path[len(old_prefix):]
+    return m
+
+
+def _remap_manifest_paths(
+    records: list[dict[str, Any]], dst_table_root: str
+) -> list[dict[str, Any]]:
+    """Remap manifest_path entries from metadata/ to _migrated/metadata/.
+
+    After src→dst prefix rewrite, manifest_path values point to
+    <table_root>/metadata/<filename>.  The actual rewritten Avro files are
+    written to <table_root>/_migrated/metadata/<filename>.
+    """
+    import copy
+
+    old_prefix = dst_table_root.rstrip("/") + "/metadata/"
+    new_prefix = dst_table_root.rstrip("/") + "/_migrated/metadata/"
+    result = copy.deepcopy(records)
+    for record in result:
+        path = record.get("manifest_path", "")
+        if path and path.startswith(old_prefix):
+            record["manifest_path"] = new_prefix + path[len(old_prefix):]
+    return result
+
+
 class RewriteResult:
     """Container for rewrite output including serialized bytes.
 
@@ -60,12 +105,18 @@ def remap_key_to_migrated(key: str, table_prefix: str) -> str:
 
     Given table_prefix='warehouse/db/table' and key='warehouse/db/table/metadata/v1.metadata.json',
     returns 'warehouse/db/table/_migrated/metadata/v1.metadata.json'.
+
+    Gzip-compressed metadata files (*.gz.metadata.json) are renamed to
+    *.metadata.json because the _migrated/ copy is written as plain JSON.
+    Athena uses the file extension to determine decoding, so removing .gz
+    prevents it from attempting to gzip-decompress plain JSON content.
     """
     prefix = table_prefix.rstrip("/")
-    if key.startswith(prefix + "/"):
-        suffix = key[len(prefix) + 1 :]
-        return f"{prefix}/_migrated/{suffix}"
-    return f"{prefix}/_migrated/{key}"
+    suffix = key[len(prefix) + 1 :] if key.startswith(prefix + "/") else key
+    # Strip .gz compression marker from metadata filenames
+    if suffix.endswith(".gz.metadata.json"):
+        suffix = suffix[: -len(".gz.metadata.json")] + ".metadata.json"
+    return f"{prefix}/_migrated/{suffix}"
 
 
 class RewriteEngine:
@@ -110,6 +161,11 @@ class RewriteEngine:
 
         # Step 1: Rewrite metadata.json dict
         rewritten_metadata = rewrite_metadata_json(full_graph.metadata, self.config)
+        # Remap manifest-list references from metadata/ → _migrated/metadata/ so
+        # downstream consumers (Athena) follow the rewritten Avro copies, not the
+        # originals that still contain stale MinIO paths.
+        rewritten_metadata = _remap_snapshot_manifest_lists(rewritten_metadata)
+        dst_table_root = rewritten_metadata.get("location", "").rstrip("/")
 
         # Step 2: Serialize rewritten metadata to bytes via orjson
         metadata_bytes = orjson.dumps(rewritten_metadata, option=orjson.OPT_INDENT_2)
@@ -119,6 +175,8 @@ class RewriteEngine:
         ml_bytes_map: dict[str, bytes] = {}
         for ml in full_graph.manifest_lists:
             new_records = rewrite_manifest_list_records(ml.records, self.config)
+            # Remap manifest_path references from metadata/ → _migrated/metadata/
+            new_records = _remap_manifest_paths(new_records, dst_table_root)
             new_ml = ManifestListFile(
                 s3_key=ml.s3_key,
                 avro_schema=ml.avro_schema,
