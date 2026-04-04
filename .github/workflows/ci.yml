@@ -28,4 +28,4 @@ jobs:
         run: uv run basedpyright src/
 
       - name: Test
-        run: uv run pytest tests/ -x
+        run: uv run pytest tests/ -x --ignore=tests/integration

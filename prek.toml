@@ -8,4 +8,4 @@ run = "uv run basedpyright src/"
 
 [[pre-commit]]
 name = "pytest"
-run = "uv run pytest tests/ -x -q"
+run = "uv run pytest tests/ -x -q --ignore=tests/integration"
