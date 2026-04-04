@@ -49,4 +49,5 @@ credentials.json
 Thumbs.db
 
 # GSD planning internals (keep committed)
-# .planning/
+.planning/
+docs/superpowers/
