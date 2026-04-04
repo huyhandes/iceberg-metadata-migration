@@ -1,6 +1,8 @@
 # Iceberg Metadata Migration — Task Runner
 # Install just: https://github.com/casey/just
 
+set dotenv-load
+
 # ---------------------------------------------------------------------------
 # Local development
 # ---------------------------------------------------------------------------
@@ -51,9 +53,9 @@ test-hms:
 test-local:
     uv run pytest -m "rest or sql or hms" -v
 
-# Run full AWS integration tests (requires AWS_PROFILE=YOUR_AWS_PROFILE)
+# Run full AWS integration tests (requires AWS credentials in .env)
 test-integration:
-    AWS_PROFILE=YOUR_AWS_PROFILE uv run pytest -m integration -v
+    uv run pytest -m integration -v
 
 # Run everything
 test-all:
@@ -73,19 +75,19 @@ infra-down:
 
 # Terraform init
 tf-init:
-    cd infra/terraform && AWS_PROFILE=YOUR_AWS_PROFILE terraform init
+    cd infra/terraform && terraform init -backend-config=backend.tfvars
 
 # Terraform plan
 tf-plan:
-    cd infra/terraform && AWS_PROFILE=YOUR_AWS_PROFILE terraform plan
+    cd infra/terraform && terraform plan
 
 # Terraform apply
 tf-apply:
-    cd infra/terraform && AWS_PROFILE=YOUR_AWS_PROFILE terraform apply
+    cd infra/terraform && terraform apply
 
 # Terraform destroy
 tf-destroy:
-    cd infra/terraform && AWS_PROFILE=YOUR_AWS_PROFILE terraform destroy
+    cd infra/terraform && terraform destroy
 
 # ---------------------------------------------------------------------------
 # Code quality

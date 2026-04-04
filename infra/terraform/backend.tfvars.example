@@ -1,0 +1,3 @@
+bucket = "your-terraform-state-bucket"
+key    = "terraform/iceberg-migration.tfstate"
+region = "your-region"

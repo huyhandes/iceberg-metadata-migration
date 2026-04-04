@@ -10,7 +10,7 @@
 
 ### For integration tests (optional)
 
-- AWS CLI configured with profile `YOUR_AWS_PROFILE`
+- AWS CLI configured (profile set in `.env`)
 - Terraform >= 1.0
 
 ## Setup

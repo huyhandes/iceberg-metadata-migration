@@ -56,7 +56,15 @@ just tf-apply    # Apply changes
 just tf-destroy  # Tear down (careful!)
 ```
 
-All `just tf-*` commands inject `AWS_PROFILE=YOUR_AWS_PROFILE` automatically.
+All `just tf-*` commands inject the `AWS_PROFILE` from `.env` automatically.
+
+### Configuration
+
+All environment-specific values are configured via `.env` (see `.env.example`):
+- `AWS_PROFILE` — AWS CLI profile
+- `AWS_REGION` — AWS region
+- `AWS_TEST_BUCKET` — S3 bucket for test data and Athena results
+- Terraform backend is configured via `infra/terraform/backend.tfvars` (see `backend.tfvars.example`)
 
 ## Seed Scripts
 

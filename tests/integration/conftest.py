@@ -10,6 +10,7 @@ Provides:
 
 from __future__ import annotations
 
+import os
 import time
 from typing import TYPE_CHECKING
 
@@ -30,10 +31,10 @@ MINIO_ACCESS_KEY = "minioadmin"
 MINIO_SECRET_KEY = "minioadmin"
 MINIO_BUCKET = "warehouse"
 
-AWS_BUCKET = "YOUR_TEST_BUCKET"
-AWS_REGION = "YOUR_REGION"
-GLUE_DB = "iceberg_migration_test"
-ATHENA_WORKGROUP = "iceberg-migration-test"
+AWS_BUCKET = os.environ.get("AWS_TEST_BUCKET", "")
+AWS_REGION = os.environ.get("AWS_REGION", "")
+GLUE_DB = os.environ.get("GLUE_DATABASE", "iceberg_migration_test")
+ATHENA_WORKGROUP = os.environ.get("ATHENA_WORKGROUP", "iceberg-migration-test")
 ATHENA_TIMEOUT_SECONDS = 120
 
 

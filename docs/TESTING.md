@@ -8,7 +8,7 @@ just test-rest         # REST catalog local tests
 just test-sql          # SQL catalog local tests
 just test-hms          # HMS catalog local tests
 just test-local        # All local catalog tests
-just test-integration  # Full AWS round-trip (requires AWS_PROFILE=YOUR_AWS_PROFILE)
+just test-integration  # Full AWS round-trip (requires .env configured)
 just test-all          # Everything
 ```
 
@@ -67,12 +67,12 @@ Full round-trip: seed on MinIO -> sync to AWS S3 -> migrate -> Athena SELECT ver
 
 **Prerequisites:**
 - Docker running + all catalogs seeded
-- `AWS_PROFILE=YOUR_AWS_PROFILE` configured
+- `AWS_PROFILE` configured in `.env`
 - Terraform infra applied (`just tf-apply`)
 
 ```bash
 just test-integration
-# or: AWS_PROFILE=YOUR_AWS_PROFILE uv run pytest -m integration -v
+# or: uv run pytest -m integration -v
 ```
 
 **What Athena verifies:**

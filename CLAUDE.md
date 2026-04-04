@@ -104,6 +104,29 @@ Runs as a **post-processing step** after data has landed on AWS S3 — regardles
 - [WebSearch: avro package Iceberg manifest bugs](https://github.com/apache/iceberg/issues/6435) — official avro package IgnoredLogicalType errors on manifest schemas (MEDIUM confidence, verified by community issue + PyIceberg's own choice to use fastavro)
 <!-- GSD:stack-end -->
 
+## Development Commands (justfile)
+
+All project commands use [just](https://github.com/casey/just) as the task runner. Run `just --list` to see all available commands.
+
+### Quick Reference
+
+```bash
+just test              # Unit tests (fast, no Docker)
+just check             # Full check: lint + types + tests
+just lint              # Lint check
+just typecheck         # Type check
+just seed-all          # Seed all catalog types (requires Docker)
+just test-local        # All local catalog tests
+just test-integration  # Full AWS round-trip (requires .env configured)
+just infra-up          # Start all Docker services
+just infra-down        # Stop Docker services
+just tf-apply          # Terraform apply
+```
+
+### Environment
+
+Copy `.env.example` to `.env` and fill in your values. The justfile auto-loads `.env` via `set dotenv-load`.
+
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
 ## Conventions
 

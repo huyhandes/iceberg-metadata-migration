@@ -8,20 +8,17 @@ terraform {
   }
 
   backend "s3" {
-    bucket  = "YOUR_TF_STATE_BUCKET"
-    key     = "terraform/iceberg-migration.tfstate"
-    region  = "YOUR_REGION"
-    # Set via AWS_PROFILE env var or -backend-config="profile=yourprofile"
+    # Configured via: terraform init -backend-config=backend.tfvars
+    # Required keys: bucket, key, region
   }
 }
 
 provider "aws" {
-  region = "YOUR_REGION"
+  region = var.aws_region
   # Set via AWS_PROFILE env var
 }
 
-# S3 bucket created manually (also used as terraform backend)
-# aws s3 mb s3://YOUR_TEST_BUCKET --region YOUR_REGION
+# S3 bucket created manually — see terraform.tfvars for the bucket name
 
 # Glue Catalog Database
 resource "aws_glue_catalog_database" "iceberg_test" {
@@ -38,7 +35,7 @@ resource "aws_athena_workgroup" "iceberg_test" {
 
   configuration {
     result_configuration {
-      output_location = "s3://YOUR_TEST_BUCKET/athena-results/"
+      output_location = "s3://${var.s3_bucket}/athena-results/"
     }
 
     engine_version {
@@ -65,7 +62,7 @@ resource "aws_lakeformation_permissions" "database_all" {
 }
 
 output "s3_bucket" {
-  value = "YOUR_TEST_BUCKET"
+  value = var.s3_bucket
 }
 
 output "glue_database" {
@@ -77,5 +74,5 @@ output "athena_workgroup" {
 }
 
 output "region" {
-  value = "YOUR_REGION"
+  value = var.aws_region
 }

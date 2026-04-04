@@ -2,7 +2,7 @@
 
 Requires:
   - Docker compose with all profiles up and seeded
-  - AWS_PROFILE=YOUR_AWS_PROFILE in environment
+  - AWS_PROFILE configured in .env
   - Terraform infra applied (Glue DB, Athena workgroup)
 
 Flow per catalog type:

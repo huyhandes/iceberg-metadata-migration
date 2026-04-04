@@ -6,7 +6,7 @@
 # Requires:
 #   - MinIO running (docker compose up)
 #   - AWS_PROFILE environment variable set
-#   - S3 bucket YOUR_TEST_BUCKET exists
+#   - S3 bucket exists (set via AWS_TEST_BUCKET env var)
 
 set -euo pipefail
 
@@ -14,10 +14,10 @@ MINIO_ENDPOINT="http://localhost:9000"
 MINIO_BUCKET="warehouse"
 MINIO_PREFIX="test_db/orders"
 
-AWS_BUCKET="YOUR_TEST_BUCKET"
+AWS_BUCKET="${AWS_TEST_BUCKET:?Set AWS_TEST_BUCKET before running}"
 AWS_PREFIX="warehouse/test_db/orders"
 AWS_PROFILE="${AWS_PROFILE:?Set AWS_PROFILE before running}"
-AWS_REGION="YOUR_REGION"
+AWS_REGION="${AWS_REGION:?Set AWS_REGION before running}"
 
 echo "=== Copying Iceberg table from MinIO to S3 ==="
 echo "Source:  s3a://${MINIO_BUCKET}/${MINIO_PREFIX} (MinIO)"

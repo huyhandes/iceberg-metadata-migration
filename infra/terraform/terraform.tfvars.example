@@ -1,0 +1,2 @@
+aws_region = "your-region"
+s3_bucket  = "your-test-bucket"
