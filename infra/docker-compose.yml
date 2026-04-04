@@ -29,55 +29,83 @@ services:
       echo 'Bucket warehouse created'
       "
 
+  # Always-on: shared relational store (Lakekeeper + Hive Metastore)
+  postgres:
+    image: postgres:17.1-alpine
+    environment:
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 1s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
   # Profile: rest — Lakekeeper Iceberg REST catalog
-  lakekeeper:
-    image: lakekeeper/lakekeeper:latest
+  lakekeeper-migrate:
+    image: &lakekeeper-image ${LAKEKEEPER__SERVER_IMAGE:-quay.io/lakekeeper/catalog:v0.12.0}
     profiles: [rest]
+    environment: &lakekeeper-env
+      LAKEKEEPER__PG_ENCRYPTION_KEY: local-dev-not-secure
+      LAKEKEEPER__PG_DATABASE_URL_READ: postgresql://postgres:postgres@postgres:5432/postgres
+      LAKEKEEPER__PG_DATABASE_URL_WRITE: postgresql://postgres:postgres@postgres:5432/postgres
+      LAKEKEEPER__AUTHZ_BACKEND: allowall
+    command: ["migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  lakekeeper:
+    image: *lakekeeper-image
+    profiles: [rest]
+    environment: *lakekeeper-env
+    command: ["serve"]
     ports:
       - "8181:8181"
     depends_on:
+      lakekeeper-migrate:
+        condition: service_completed_successfully
       minio:
         condition: service_healthy
-    environment:
-      LAKEKEEPER__BASE_URI: http://0.0.0.0:8181
-      LAKEKEEPER__CATALOG__STORAGE__S3__ENDPOINT: http://minio:9000
-      LAKEKEEPER__CATALOG__STORAGE__S3__BUCKET: warehouse
-      LAKEKEEPER__CATALOG__STORAGE__S3__REGION: us-east-1
-      LAKEKEEPER__CATALOG__STORAGE__S3__ACCESS_KEY: minioadmin
-      LAKEKEEPER__CATALOG__STORAGE__S3__SECRET_KEY: minioadmin
-      LAKEKEEPER__CATALOG__STORAGE__S3__PATH_STYLE_ACCESS: "true"
-      LAKEKEEPER__CATALOG__STORAGE__TYPE: s3
-
-  # Profile: hms — Hive Metastore
-  hms-postgres:
-    image: postgres:16-alpine
-    profiles: [hms]
-    environment:
-      POSTGRES_DB: metastore
-      POSTGRES_USER: hive
-      POSTGRES_PASSWORD: hive
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hive -d metastore"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "/home/nonroot/lakekeeper", "healthcheck"]
+      interval: 2s
+      timeout: 10s
+      retries: 10
+      start_period: 5s
 
+  # Profile: hms — fetch PostgreSQL JDBC driver into shared volume (not bundled in image)
+  hms-driver-init:
+    image: alpine:3.21
+    profiles: [hms]
+    volumes:
+      - hms-ext-jars:/ext-jars
+    entrypoint:
+      - sh
+      - -c
+      - wget -q -O /ext-jars/postgresql-42.7.4.jar https://jdbc.postgresql.org/download/postgresql-42.7.4.jar
+
+  # Profile: hms — Hive Standalone Metastore
   hive-metastore:
-    image: apache/hive:4.0.1
+    image: apache/hive:standalone-metastore-4.2.0
     profiles: [hms]
     ports:
       - "9083:9083"
     depends_on:
-      hms-postgres:
+      postgres:
         condition: service_healthy
       minio:
         condition: service_healthy
+      hms-driver-init:
+        condition: service_completed_successfully
+    volumes:
+      - hms-ext-jars:/tmp/ext-jars:ro
     environment:
-      SERVICE_NAME: metastore
       DB_DRIVER: postgres
       SERVICE_OPTS: >-
-        -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
-        -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://hms-postgres:5432/metastore
+        -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/metastore
         -Djavax.jdo.option.ConnectionUserName=hive
         -Djavax.jdo.option.ConnectionPassword=hive
         -Dfs.s3a.endpoint=http://minio:9000
@@ -86,5 +114,63 @@ services:
         -Dfs.s3a.path.style.access=true
         -Dfs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
 
+  # Profile: seed-rest — run REST seed inside Docker network (avoids credential-vending hostname issue)
+  seed-rest:
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+    profiles: [seed-rest]
+    depends_on:
+      lakekeeper:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    volumes:
+      - ..:/workspace
+      - seed-venv:/seed-venv
+    working_dir: /workspace
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      LAKEKEEPER_URI: http://lakekeeper:8181/catalog
+      LAKEKEEPER_MGMT_URI: http://lakekeeper:8181/management
+      UV_PROJECT_ENVIRONMENT: /seed-venv
+    command: uv run python -m infra.seed.seed_rest
+
+  # Profile: seed-sql — run SQL seed inside Docker network
+  seed-sql:
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+    profiles: [seed-sql]
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    volumes:
+      - ..:/workspace
+      - seed-venv:/seed-venv
+    working_dir: /workspace
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      UV_PROJECT_ENVIRONMENT: /seed-venv
+    command: uv run python -m infra.seed.seed_sql
+
+  # Profile: seed-hms — run HMS seed inside Docker network
+  seed-hms:
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+    profiles: [seed-hms]
+    depends_on:
+      hive-metastore:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+    volumes:
+      - ..:/workspace
+      - seed-venv:/seed-venv
+    working_dir: /workspace
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      HMS_URI: thrift://hive-metastore:9083
+      UV_PROJECT_ENVIRONMENT: /seed-venv
+    command: uv run python -m infra.seed.seed_hms
+
 volumes:
   minio-data:
+  postgres-data:
+  hms-ext-jars:
+  seed-venv:

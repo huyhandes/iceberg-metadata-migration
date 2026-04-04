@@ -10,24 +10,24 @@ set dotenv-load
 # Seed Iceberg table via Lakekeeper REST catalog
 seed-rest:
     docker compose -f infra/docker-compose.yml --profile rest up -d
-    uv run python infra/seed/seed_rest.py
+    docker compose -f infra/docker-compose.yml --profile rest --profile seed-rest run --rm seed-rest
 
 # Seed Iceberg table via SQLite SQL catalog
 seed-sql:
     docker compose -f infra/docker-compose.yml up -d minio minio-init
-    uv run python infra/seed/seed_sql.py
+    docker compose -f infra/docker-compose.yml --profile seed-sql run --rm seed-sql
 
 # Seed Iceberg table via Hive Metastore catalog
 seed-hms:
     docker compose -f infra/docker-compose.yml --profile hms up -d
-    uv run python infra/seed/seed_hms.py
+    docker compose -f infra/docker-compose.yml --profile hms --profile seed-hms run --rm seed-hms
 
 # Seed all catalog types
 seed-all:
     docker compose -f infra/docker-compose.yml --profile rest --profile hms up -d
-    uv run python infra/seed/seed_rest.py
-    uv run python infra/seed/seed_sql.py
-    uv run python infra/seed/seed_hms.py
+    docker compose -f infra/docker-compose.yml --profile rest --profile seed-rest run --rm seed-rest
+    docker compose -f infra/docker-compose.yml --profile seed-sql run --rm seed-sql
+    docker compose -f infra/docker-compose.yml --profile hms --profile seed-hms run --rm seed-hms
 
 # ---------------------------------------------------------------------------
 # Testing
@@ -73,21 +73,30 @@ infra-up:
 infra-down:
     docker compose -f infra/docker-compose.yml --profile rest --profile hms down -v
 
-# Terraform init
+# Terraform init (reads backend config from .env: TF_STATE_BUCKET, AWS_REGION)
 tf-init:
-    cd infra/terraform && terraform init -backend-config=backend.tfvars
+    cd infra/terraform && terraform init \
+        -backend-config="bucket={{env('TF_STATE_BUCKET')}}" \
+        -backend-config="key=terraform/iceberg-migration.tfstate" \
+        -backend-config="region={{env('AWS_REGION')}}"
 
-# Terraform plan
+# Terraform plan (reads vars from .env: AWS_TEST_BUCKET, AWS_REGION)
 tf-plan:
-    cd infra/terraform && terraform plan
+    cd infra/terraform && terraform plan \
+        -var="aws_region={{env('AWS_REGION')}}" \
+        -var="s3_bucket={{env('AWS_TEST_BUCKET')}}"
 
-# Terraform apply
+# Terraform apply (reads vars from .env: AWS_TEST_BUCKET, AWS_REGION)
 tf-apply:
-    cd infra/terraform && terraform apply
+    cd infra/terraform && terraform apply -auto-approve \
+        -var="aws_region={{env('AWS_REGION')}}" \
+        -var="s3_bucket={{env('AWS_TEST_BUCKET')}}"
 
-# Terraform destroy
+# Terraform destroy (reads vars from .env: AWS_TEST_BUCKET, AWS_REGION)
 tf-destroy:
-    cd infra/terraform && terraform destroy
+    cd infra/terraform && terraform destroy \
+        -var="aws_region={{env('AWS_REGION')}}" \
+        -var="s3_bucket={{env('AWS_TEST_BUCKET')}}"
 
 # ---------------------------------------------------------------------------
 # Code quality

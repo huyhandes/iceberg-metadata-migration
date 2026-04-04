@@ -7,6 +7,7 @@ the migration tool produces identical results regardless of source catalog.
 from __future__ import annotations
 
 import datetime
+import os
 
 import pyarrow as pa
 
@@ -14,7 +15,7 @@ import pyarrow as pa
 # MinIO connection constants
 # ---------------------------------------------------------------------------
 
-MINIO_ENDPOINT = "http://localhost:9000"
+MINIO_ENDPOINT = os.environ.get("MINIO_ENDPOINT", "http://localhost:9000")
 MINIO_ACCESS_KEY = "minioadmin"
 MINIO_SECRET_KEY = "minioadmin"
 MINIO_REGION = "us-east-1"

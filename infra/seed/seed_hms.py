@@ -7,6 +7,8 @@ Usage: uv run python infra/seed/seed_hms.py
 
 from __future__ import annotations
 
+import os
+
 from pyiceberg.catalog.hive import HiveCatalog
 
 from infra.seed.common import (
@@ -18,7 +20,7 @@ from infra.seed.common import (
     sample_data,
 )
 
-HMS_URI = "thrift://localhost:9083"
+HMS_URI = os.environ.get("HMS_URI", "thrift://localhost:9083")
 
 
 def main() -> None:
