@@ -4,8 +4,14 @@
 
 - Python >= 3.10 (3.12 recommended)
 - [uv](https://docs.astral.sh/uv/) — package manager
-- [act](https://nektosact.com/) — local CI runner (optional, for pre-commit CI)
-- Docker (for act and local MinIO)
+- [just](https://github.com/casey/just) — task runner
+- Docker (for local catalog tests and MinIO)
+- [act](https://nektosact.com/) — local CI runner (optional)
+
+### For integration tests (optional)
+
+- AWS CLI configured with profile `YOUR_AWS_PROFILE`
+- Terraform >= 1.0
 
 ## Setup
 
@@ -17,26 +23,73 @@ uv sync --dev
 
 # Install pre-commit hooks
 uv run prek install
+
+# Install just (macOS)
+brew install just
 ```
+
+## Quick Reference
+
+```bash
+just --list            # Show all available commands
+just test              # Unit tests
+just lint              # Lint check
+just typecheck         # Type check
+just check             # All checks (lint + types + tests)
+```
+
+## Local Catalog Testing
+
+Start Docker services and seed test data:
+
+```bash
+# All catalogs at once
+just infra-up && just seed-all
+
+# Or individually
+just seed-rest          # Lakekeeper REST catalog
+just seed-sql           # SQLite SQL catalog (MinIO only)
+just seed-hms           # Hive Metastore
+
+# Run tests
+just test-local         # All catalog tests
+just test-rest          # Just REST
+```
+
+See [INFRASTRUCTURE.md](INFRASTRUCTURE.md) for Docker compose details.
+
+## Integration Testing (AWS)
+
+Requires AWS credentials and Terraform:
+
+```bash
+# One-time: provision infra
+just tf-init
+just tf-apply
+
+# Run integration tests
+just test-integration
+```
+
+See [TESTING.md](TESTING.md) for full test strategy.
 
 ## Daily Workflow
 
 ### Run tests
 ```bash
-uv run pytest tests/ -x
+just test               # Unit tests (fast)
+just check              # Full check: lint + types + tests
 ```
 
 ### Lint and format
 ```bash
-uv run ruff check .         # lint
-uv run ruff check --fix .   # lint + auto-fix
-uv run ruff format .        # format
-uv run ruff format --check . # format check (CI mode)
+just lint               # Check
+just lint-fix           # Auto-fix
 ```
 
 ### Type check
 ```bash
-uv run basedpyright src/
+just typecheck
 ```
 
 ### Run full CI locally
@@ -61,19 +114,7 @@ uv run prek install
 
 GitHub Actions workflow in `.github/workflows/ci.yml`. Runs on push to `master` and on PRs.
 
-Same checks as pre-commit: ruff → basedpyright → pytest.
-
-To run locally via act:
-```bash
-act -j check
-```
-
-## Claude Code Hooks
-
-Configured in `.claude/settings.json`:
-
-- **PreCommit** — runs `act` before commits (full CI)
-- **PostTaskComplete** — runs `basedpyright` after agent edits
+Same checks as pre-commit: ruff -> basedpyright -> pytest.
 
 ## Adding Dependencies
 

@@ -1,26 +1,27 @@
 # Testing
 
-## Running Tests
+## Quick Reference (justfile)
 
 ```bash
-# Full suite
-uv run pytest tests/ -x
-
-# Specific module
-uv run pytest tests/test_rewrite/ -v
-
-# Single test
-uv run pytest tests/test_rewrite/test_engine.py::test_rewrite_engine_rewrites_location -v
-
-# With coverage
-uv run pytest tests/ --cov=iceberg_migrate --cov-report=term-missing
+just test              # Unit tests (fast, no Docker)
+just test-rest         # REST catalog local tests
+just test-sql          # SQL catalog local tests
+just test-hms          # HMS catalog local tests
+just test-local        # All local catalog tests
+just test-integration  # Full AWS round-trip (requires AWS_PROFILE=YOUR_AWS_PROFILE)
+just test-all          # Everything
 ```
 
-## Test Strategy
+## Test Tiers
 
-### Unit Tests
+### Tier 1: Unit Tests (moto-mocked)
 
-Each module has a corresponding test file:
+Fast tests using moto for S3/Glue mocking. No Docker or AWS credentials needed.
+
+```bash
+just test
+# or: uv run pytest tests/ -x --ignore=tests/integration
+```
 
 | Module | Test File |
 |--------|-----------|
@@ -35,21 +36,55 @@ Each module has a corresponding test file:
 | `writer/s3_writer.py` | `tests/test_writer/test_s3_writer.py` |
 | `catalog/glue_registrar.py` | `tests/test_catalog/test_glue_registrar.py` |
 
-### Integration Tests
+Integration tests (moto): `tests/test_rewrite/test_integration.py`, `tests/test_integration/test_end_to_end.py`
 
-- `tests/test_rewrite/test_integration.py` — end-to-end rewrite pipeline
-- `tests/test_integration/test_end_to_end.py` — full CLI pipeline with mocked AWS
+### Tier 2: Local Catalog Tests (Docker)
 
-### v3-Specific Tests
+Tests migration against real Iceberg metadata produced by different catalog types on MinIO.
 
-- `tests/test_rewrite/test_avro_rewriter_v3.py` — deletion vector path rewriting
-- `tests/fixtures/v3_manifest_with_dv.py` — v3 manifest fixture with deletion vectors
+**Prerequisites:**
+- Docker running
+- Relevant catalog seeded (see Infrastructure section)
 
-## Mocking Approach
+```bash
+just seed-rest && just test-rest     # REST (Lakekeeper)
+just seed-sql && just test-sql       # SQL (SQLite)
+just seed-hms && just test-hms       # HMS (Hive Metastore)
+just seed-all && just test-local     # All catalogs
+```
+
+**Pytest markers:**
+
+| Marker | Catalog | Docker Profile |
+|--------|---------|---------------|
+| `@pytest.mark.rest` | Lakekeeper REST | `rest` |
+| `@pytest.mark.sql` | SQLite SQL | (none — MinIO only) |
+| `@pytest.mark.hms` | Hive Metastore | `hms` |
+
+### Tier 3: AWS Integration Tests (Athena)
+
+Full round-trip: seed on MinIO -> sync to AWS S3 -> migrate -> Athena SELECT verification.
+
+**Prerequisites:**
+- Docker running + all catalogs seeded
+- `AWS_PROFILE=YOUR_AWS_PROFILE` configured
+- Terraform infra applied (`just tf-apply`)
+
+```bash
+just test-integration
+# or: AWS_PROFILE=YOUR_AWS_PROFILE uv run pytest -m integration -v
+```
+
+**What Athena verifies:**
+- Row count matches seeded data (10 rows)
+- Data integrity (specific column values match)
+- Proves the entire chain: Glue registration -> metadata.json -> Avro manifests -> data files
+
+**Cleanup:** Tests clean up S3 objects and Glue tables in `finally` blocks.
+
+## Mocking Approach (Unit Tests)
 
 ### AWS Services (moto)
-
-All AWS calls are mocked via `moto`:
 
 ```python
 from moto import mock_aws
@@ -63,27 +98,20 @@ def s3_client():
 
 Shared fixtures in `tests/conftest.py`:
 - `s3_client` — mocked S3 client
-- `aws_clients` — mocked S3 + Glue clients with pre-created `testdb` database
+- `aws_clients` — mocked S3 + Glue with pre-created `testdb` database
 
 ### Avro Fixtures
 
-Tests create Avro data in-memory using fastavro:
-
-```python
-def make_manifest_avro(file_paths: list[str]) -> bytes:
-    schema = {...}
-    records = [{"data_file": {"file_path": p}} for p in file_paths]
-    buf = io.BytesIO()
-    fastavro.writer(buf, schema, records)
-    return buf.getvalue()
-```
+Tests create Avro data in-memory using fastavro. See `tests/fixtures/v3_manifest_with_dv.py`.
 
 ## What Tests Verify
 
 1. **Path rewriting correctness** — every path-bearing field is rewritten
-2. **Avro round-trip** — serialize → deserialize preserves schema and data
+2. **Avro round-trip** — serialize -> deserialize preserves schema and data
 3. **Non-destructive writes** — output goes to `_migrated/` keys, originals untouched
 4. **Validation gate** — rewritten files have zero residual source prefixes
 5. **Count preservation** — manifest counts match before/after rewrite
 6. **Idempotent registration** — Glue create vs. update behavior
 7. **Error propagation** — S3/Glue failures produce correct exit codes
+8. **Cross-catalog compatibility** — metadata from REST, SQL, HMS catalogs all migrate correctly
+9. **Athena queryability** — migrated tables are queryable end-to-end
