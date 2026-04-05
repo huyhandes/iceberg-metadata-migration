@@ -4,6 +4,7 @@ import io
 import json
 
 import fastavro
+import pytest
 
 from iceberg_migrate.discovery.reader import load_avro_with_schema, load_metadata_graph
 from iceberg_migrate.rewrite.config import RewriteConfig
@@ -249,7 +250,7 @@ def test_rewrite_engine_manifest_list_avro_roundtrip(s3_client):
     rewritten_bytes = result.manifest_list_bytes[migrated_key(ml_key)]
 
     # Read back the serialized Avro bytes
-    schema, records = load_avro_with_schema(rewritten_bytes)
+    schema, records, codec = load_avro_with_schema(rewritten_bytes)
     assert len(records) == 1
     # manifest_path should NOT contain s3a://minio-bucket anymore
     assert "s3a://minio-bucket" not in records[0]["manifest_path"]
@@ -274,7 +275,7 @@ def test_rewrite_engine_manifest_avro_roundtrip(s3_client):
     rewritten_bytes = result.manifest_bytes[migrated_key(manifest_key)]
 
     # Read back the serialized Avro bytes
-    schema, records = load_avro_with_schema(rewritten_bytes)
+    schema, records, codec = load_avro_with_schema(rewritten_bytes)
     assert len(records) == 1
     # file_path should NOT contain s3a://minio-bucket anymore
     assert "s3a://minio-bucket" not in records[0]["data_file"]["file_path"]
@@ -331,3 +332,38 @@ def test_rewrite_engine_no_snapshots(s3_client):
     assert result.manifest_list_bytes == {}
     assert result.manifest_bytes == {}
     assert isinstance(result.metadata_bytes, bytes)
+
+
+def test_rewrite_engine_rejects_unknown_format_version(s3_client):
+    """RewriteEngine raises ValueError for format-version outside {1, 2, 3}."""
+    setup_bucket(s3_client)
+    metadata = {
+        "format-version": 4,
+        "location": f"s3a://minio-bucket/{TABLE_PREFIX}",
+    }
+    s3_client.put_object(
+        Bucket=BUCKET,
+        Key=f"{TABLE_PREFIX}/metadata/v1.metadata.json",
+        Body=json.dumps(metadata).encode(),
+    )
+    graph = load_metadata_graph(s3_client, BUCKET, TABLE_PREFIX)
+    engine = RewriteEngine(CONFIG)
+    with pytest.raises(ValueError, match="Unsupported Iceberg format-version"):
+        engine.rewrite(graph, s3_client, BUCKET, TABLE_PREFIX)
+
+
+def test_rewrite_engine_preserves_avro_codec(s3_client):
+    """RewriteEngine writes rewritten Avro files with the same codec as the original."""
+    setup_bucket(s3_client)
+    build_simple_table(s3_client)
+    graph = load_metadata_graph(s3_client, BUCKET, TABLE_PREFIX)
+    # Original fixtures write with default null codec
+    assert graph.manifest_lists[0].codec == "null"
+    engine = RewriteEngine(CONFIG)
+    result = engine.rewrite(graph, s3_client, BUCKET, TABLE_PREFIX)
+    for avro_bytes in result.manifest_list_bytes.values():
+        _, _, codec = load_avro_with_schema(avro_bytes)
+        assert codec == "null"
+    for avro_bytes in result.manifest_bytes.values():
+        _, _, codec = load_avro_with_schema(avro_bytes)
+        assert codec == "null"

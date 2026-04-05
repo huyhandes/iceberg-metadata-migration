@@ -29,7 +29,9 @@ from infra.seed.common import (
 )
 
 LAKEKEEPER_URI = os.environ.get("LAKEKEEPER_URI", "http://localhost:8181/catalog")
-LAKEKEEPER_MGMT_URI = os.environ.get("LAKEKEEPER_MGMT_URI", "http://localhost:8181/management")
+LAKEKEEPER_MGMT_URI = os.environ.get(
+    "LAKEKEEPER_MGMT_URI", "http://localhost:8181/management"
+)
 WAREHOUSE_NAME = "warehouse"
 
 
@@ -133,12 +135,14 @@ def main() -> None:
     # the async aiobotocore client — so signed headers are never sent and MinIO returns
     # 403. Bypass by replacing the table's FileIO with PyArrowFileIO which uses
     # credentials directly without going through remote signing.
-    table.io = PyArrowFileIO({
-        "s3.endpoint": MINIO_ENDPOINT,
-        "s3.access-key-id": MINIO_ACCESS_KEY,
-        "s3.secret-access-key": MINIO_SECRET_KEY,
-        "s3.region": MINIO_REGION,
-    })
+    table.io = PyArrowFileIO(
+        {
+            "s3.endpoint": MINIO_ENDPOINT,
+            "s3.access-key-id": MINIO_ACCESS_KEY,
+            "s3.secret-access-key": MINIO_SECRET_KEY,
+            "s3.region": MINIO_REGION,
+        }
+    )
     table.append(sample_data())
 
     # Verify

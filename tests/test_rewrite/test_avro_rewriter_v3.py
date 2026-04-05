@@ -91,3 +91,32 @@ def test_v3_deletion_vector_none_handled_gracefully():
     assert data_file["file_path"] == f"{DST}/db/table/data/0004.parquet"
     # deletion_vector stays None, no error raised
     assert data_file["deletion_vector"] is None
+
+
+def test_v3_referenced_data_file_rewritten():
+    """v3 delete manifest record with referenced_data_file gets path rewritten."""
+    records = [
+        {
+            "data_file": {
+                "file_path": f"{SRC}/db/table/deletes/eq-delete-0001.parquet",
+                "referenced_data_file": f"{SRC}/db/table/data/0001.parquet",
+            }
+        }
+    ]
+    result = rewrite_manifest_records(records, CONFIG)
+    data_file = result[0]["data_file"]
+    assert data_file["file_path"] == f"{DST}/db/table/deletes/eq-delete-0001.parquet"
+    assert data_file["referenced_data_file"] == f"{DST}/db/table/data/0001.parquet"
+
+
+def test_v3_referenced_data_file_missing_no_error():
+    """Records without referenced_data_file are handled without error."""
+    records = [
+        {
+            "data_file": {
+                "file_path": f"{SRC}/db/table/data/0001.parquet",
+            }
+        }
+    ]
+    result = rewrite_manifest_records(records, CONFIG)
+    assert "referenced_data_file" not in result[0]["data_file"]

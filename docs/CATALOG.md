@@ -104,3 +104,36 @@ All defined in `base.py`:
 | `NamespaceNotFoundError` | Target namespace/database doesn't exist |
 | `CatalogUnreachableError` | Catalog endpoint unreachable |
 | `AuthenticationError` | Auth to catalog fails |
+
+## Source Catalog Format Reference
+
+The migration tool reads metadata produced by any Iceberg catalog. Different catalogs write metadata in different formats. This table summarizes what the tool handles during discovery and rewrite.
+
+### Metadata.json Encoding
+
+| Source Catalog | Encoding | Filename Pattern | Notes |
+|----------------|----------|------------------|-------|
+| Java-based (Glue, HMS, Nessie, Polaris, Gravitino, Unity) | Plain UTF-8 JSON (default) | `{5-digit}-{UUID}.metadata.json` | Optional gzip via `write.metadata.compression-codec` |
+| Java Hadoop/filesystem | Plain UTF-8 JSON (default) | `v{N}.metadata.json` | Uses `version-hint.text` for version tracking |
+| Lakekeeper (Rust) | **Gzip-compressed JSON (hardcoded)** | `{5-digit}-{UUID}.gz.metadata.json` | Not configurable per-table |
+| PyIceberg (SQL catalog) | Plain UTF-8 JSON (default) | `{5-digit}-{UUID}.metadata.json` | Optional gzip via table property |
+
+### Avro Manifest Codec
+
+| Source Catalog | `avro.codec` Header Value | Notes |
+|----------------|---------------------------|-------|
+| Java-based (all) | `deflate` | Default; gzip/deflate level 9. Iceberg calls it "gzip" but Avro spec name is "deflate" |
+| Lakekeeper (post Jan 2026) | `deflate` | Changed from `null` to `deflate` in iceberg-rust PR #1851 |
+| Lakekeeper (pre Jan 2026) | `null` | Uncompressed Avro containers |
+| PyIceberg | `deflate` | Maps `"gzip"` -> `"deflate"` in Avro header |
+
+The tool preserves the original codec on round-trip: codec is read from the Avro container header during discovery, stored on the `ManifestListFile`/`ManifestFile` model, and passed back to `fastavro.writer()` during serialization.
+
+### Format Version Support
+
+| Version | Supported | Key Additions |
+|---------|-----------|---------------|
+| 1 | Yes | Original format; no row-level deletes |
+| 2 | Yes | Row-level deletes (position + equality delete files) |
+| 3 | Yes | Deletion vectors, `referenced_data_file` field |
+| 4+ | **Rejected** | Not yet released; `RewriteEngine` raises `ValueError` |

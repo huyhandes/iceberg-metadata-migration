@@ -1,5 +1,6 @@
 """Tests for the metadata graph reader — load_avro_with_schema and load_metadata_graph."""
 
+import gzip as gzip_stdlib
 import io
 import json
 
@@ -80,14 +81,15 @@ def setup_bucket(s3_client) -> None:
 # Test 1: load_avro_with_schema returns (writer_schema, records)
 # ---------------------------------------------------------------------------
 def test_load_avro_with_schema_returns_schema_and_records():
-    """load_avro_with_schema returns a (dict, list) tuple with non-empty schema."""
+    """load_avro_with_schema returns a (dict, list, str) tuple with non-empty schema."""
     avro_bytes = make_manifest_list_avro(["s3://bucket/metadata/manifest-1.avro"])
-    schema, records = load_avro_with_schema(avro_bytes)
+    schema, records, codec = load_avro_with_schema(avro_bytes)
     assert isinstance(schema, dict), "writer_schema should be a dict"
     assert len(schema) > 0, "writer_schema should not be empty"
     assert isinstance(records, list)
     assert len(records) == 1
     assert records[0]["manifest_path"] == "s3://bucket/metadata/manifest-1.avro"
+    assert isinstance(codec, str)
 
 
 # ---------------------------------------------------------------------------
@@ -254,3 +256,88 @@ def test_no_current_snapshot_returns_empty_graph(s3_client):
     assert graph.manifest_lists == []
     assert graph.manifests == []
     assert graph.metadata["table-uuid"] == "test-uuid-empty"
+
+
+# ---------------------------------------------------------------------------
+# Test 6: load_metadata_graph decompresses gzip metadata
+# ---------------------------------------------------------------------------
+def test_load_metadata_graph_gzip_metadata(s3_client):
+    """load_metadata_graph decompresses .gz.metadata.json before JSON parsing."""
+    setup_bucket(s3_client)
+    manifest_list_key = f"{TABLE_PREFIX}/metadata/snap-1-manifest-list.avro"
+    manifest_key = f"{TABLE_PREFIX}/metadata/manifest-1.avro"
+    manifest_list_avro = make_manifest_list_avro([f"s3://{BUCKET}/{manifest_key}"])
+    manifest_avro = make_manifest_avro(["s3://bucket/data/file.parquet"])
+    metadata = {
+        "format-version": 2,
+        "table-uuid": "gz-test-uuid",
+        "location": f"s3://{BUCKET}/{TABLE_PREFIX}",
+        "current-snapshot-id": 1,
+        "snapshots": [
+            {
+                "snapshot-id": 1,
+                "timestamp-ms": 1700000000000,
+                "manifest-list": f"s3://{BUCKET}/{manifest_list_key}",
+                "summary": {"operation": "append"},
+            }
+        ],
+    }
+    gzip_key = f"{TABLE_PREFIX}/metadata/00001-abc.gz.metadata.json"
+    upload_bytes(
+        s3_client, gzip_key, gzip_stdlib.compress(json.dumps(metadata).encode())
+    )
+    upload_bytes(s3_client, manifest_list_key, manifest_list_avro)
+    upload_bytes(s3_client, manifest_key, manifest_avro)
+    graph = load_metadata_graph(s3_client, BUCKET, TABLE_PREFIX)
+    assert graph.metadata["format-version"] == 2
+    assert graph.metadata["table-uuid"] == "gz-test-uuid"
+    assert len(graph.manifest_lists) == 1
+
+
+# ---------------------------------------------------------------------------
+# Test 7: load_avro_with_schema returns codec in 3-tuple
+# ---------------------------------------------------------------------------
+def test_load_avro_with_schema_returns_codec():
+    """load_avro_with_schema returns (schema, records, codec) 3-tuple."""
+    avro_bytes = make_manifest_list_avro(["s3://bucket/metadata/m.avro"])
+    schema, records, codec = load_avro_with_schema(avro_bytes)
+    assert isinstance(codec, str)
+    assert codec in ("null", "deflate", "snappy", "zstandard", "zstd", "brotli", "lz4")
+
+
+# ---------------------------------------------------------------------------
+# Test 8: ManifestListFile.codec and ManifestFile.codec are populated after loading
+# ---------------------------------------------------------------------------
+def test_manifest_codec_stored_in_graph(s3_client):
+    """ManifestListFile.codec and ManifestFile.codec are populated after loading."""
+    setup_bucket(s3_client)
+    manifest_list_key = f"{TABLE_PREFIX}/metadata/snap-1-manifest-list.avro"
+    manifest_key = f"{TABLE_PREFIX}/metadata/manifest-1.avro"
+    manifest_list_avro = make_manifest_list_avro([f"s3://{BUCKET}/{manifest_key}"])
+    manifest_avro = make_manifest_avro(["s3://bucket/data/file.parquet"])
+    metadata = {
+        "format-version": 2,
+        "table-uuid": "codec-test-uuid",
+        "location": f"s3://{BUCKET}/{TABLE_PREFIX}",
+        "current-snapshot-id": 1,
+        "snapshots": [
+            {
+                "snapshot-id": 1,
+                "timestamp-ms": 1700000000000,
+                "manifest-list": f"s3://{BUCKET}/{manifest_list_key}",
+                "summary": {"operation": "append"},
+            }
+        ],
+    }
+    upload_bytes(
+        s3_client,
+        f"{TABLE_PREFIX}/metadata/v1.metadata.json",
+        json.dumps(metadata).encode(),
+    )
+    upload_bytes(s3_client, manifest_list_key, manifest_list_avro)
+    upload_bytes(s3_client, manifest_key, manifest_avro)
+    graph = load_metadata_graph(s3_client, BUCKET, TABLE_PREFIX)
+    assert hasattr(graph.manifest_lists[0], "codec")
+    assert isinstance(graph.manifest_lists[0].codec, str)
+    assert hasattr(graph.manifests[0], "codec")
+    assert isinstance(graph.manifests[0].codec, str)

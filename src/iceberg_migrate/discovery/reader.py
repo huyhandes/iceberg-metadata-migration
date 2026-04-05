@@ -13,13 +13,13 @@ Key design decisions:
 
 from __future__ import annotations
 
-import gzip
 import io
 from typing import TYPE_CHECKING, Any, cast
 
 import fastavro
 import orjson
 
+from iceberg_migrate.discovery.compression import decompress_metadata
 from iceberg_migrate.discovery.locator import find_latest_metadata
 from iceberg_migrate.models import IcebergMetadataGraph, ManifestFile, ManifestListFile
 from iceberg_migrate.s3 import get_s3_object_bytes
@@ -28,8 +28,10 @@ if TYPE_CHECKING:
     from mypy_boto3_s3 import S3Client
 
 
-def load_avro_with_schema(data: bytes) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """Read Avro bytes and return the writer schema alongside all records.
+def load_avro_with_schema(
+    data: bytes,
+) -> tuple[dict[str, Any], list[dict[str, Any]], str]:
+    """Read Avro bytes and return the writer schema, all records, and the codec.
 
     The writer_schema is captured *before* iterating to ensure fastavro does
     not discard it mid-stream.
@@ -38,8 +40,8 @@ def load_avro_with_schema(data: bytes) -> tuple[dict[str, Any], list[dict[str, A
         data: Raw Avro file bytes.
 
     Returns:
-        A (writer_schema, records) tuple where writer_schema is a dict and
-        records is a list of dicts.
+        A (writer_schema, records, codec) tuple where writer_schema is a dict,
+        records is a list of dicts, and codec is the Avro container codec string.
 
     Raises:
         ValueError: If the Avro file has no embedded writer schema (invalid for Iceberg).
@@ -54,7 +56,12 @@ def load_avro_with_schema(data: bytes) -> tuple[dict[str, Any], list[dict[str, A
         )
     writer_schema = cast(dict[str, Any], raw_schema)
     records = cast(list[dict[str, Any]], list(reader))
-    return writer_schema, records
+    # Capture codec from Avro container header
+    codec_raw: Any = reader.metadata.get("avro.codec", "null")
+    codec: str = (
+        codec_raw.decode("utf-8") if isinstance(codec_raw, bytes) else str(codec_raw)
+    )
+    return writer_schema, records, codec
 
 
 def resolve_avro_key(uri: str, table_prefix: str) -> str:
@@ -106,8 +113,7 @@ def load_metadata_graph(
     metadata_bytes = get_s3_object_bytes(s3_client, bucket, metadata_key)
     # Some Iceberg writers (e.g. Lakekeeper) gzip-compress metadata files and name
     # them *.gz.metadata.json — decompress before JSON parsing.
-    if metadata_bytes[:2] == b"\x1f\x8b":
-        metadata_bytes = gzip.decompress(metadata_bytes)
+    metadata_bytes = decompress_metadata(metadata_bytes, metadata_key)
     metadata_dict: dict[str, Any] = orjson.loads(metadata_bytes)
 
     graph = IcebergMetadataGraph(
@@ -135,12 +141,13 @@ def load_metadata_graph(
 
     manifest_list_key = resolve_avro_key(manifest_list_uri, table_prefix)
     manifest_list_bytes = get_s3_object_bytes(s3_client, bucket, manifest_list_key)
-    ml_schema, ml_records = load_avro_with_schema(manifest_list_bytes)
+    ml_schema, ml_records, ml_codec = load_avro_with_schema(manifest_list_bytes)
 
     manifest_list_file = ManifestListFile(
         s3_key=manifest_list_key,
         avro_schema=ml_schema,
         records=ml_records,
+        codec=ml_codec,
     )
     graph.manifest_lists.append(manifest_list_file)
 
@@ -152,12 +159,13 @@ def load_metadata_graph(
 
         manifest_key = resolve_avro_key(manifest_path, table_prefix)
         manifest_bytes = get_s3_object_bytes(s3_client, bucket, manifest_key)
-        m_schema, m_records = load_avro_with_schema(manifest_bytes)
+        m_schema, m_records, m_codec = load_avro_with_schema(manifest_bytes)
 
         manifest_file = ManifestFile(
             s3_key=manifest_key,
             avro_schema=m_schema,
             records=m_records,
+            codec=m_codec,
         )
         graph.manifests.append(manifest_file)
 

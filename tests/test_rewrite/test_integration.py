@@ -335,7 +335,7 @@ def test_full_pipeline_rewrite_and_validate(s3_client):
 
     # All manifest list Avro bytes: manifest_path values rewritten
     for key, ml_bytes in result.manifest_list_bytes.items():
-        _, records = load_avro_with_schema(ml_bytes)
+        _, records, _ = load_avro_with_schema(ml_bytes)
         for rec in records:
             mp = rec.get("manifest_path", "")
             assert "s3a://" not in mp, (
@@ -344,7 +344,7 @@ def test_full_pipeline_rewrite_and_validate(s3_client):
 
     # All manifest Avro bytes: data_file.file_path values rewritten
     for key, m_bytes in result.manifest_bytes.items():
-        _, records = load_avro_with_schema(m_bytes)
+        _, records, _ = load_avro_with_schema(m_bytes)
         for rec in records:
             fp = rec.get("data_file", {}).get("file_path", "")
             assert "s3a://" not in fp, (

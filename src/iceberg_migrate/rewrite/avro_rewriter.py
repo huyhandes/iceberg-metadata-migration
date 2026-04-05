@@ -56,6 +56,11 @@ def rewrite_manifest_records(
             path = data_file.get("file_path", "")
             if path:
                 data_file["file_path"] = config.replace_prefix(path)
+            # v3: rewrite referenced_data_file path (position/equality delete manifests, field id 143)
+            if "referenced_data_file" in data_file:
+                ref = data_file["referenced_data_file"]
+                if ref:
+                    data_file["referenced_data_file"] = config.replace_prefix(ref)
             # v3: rewrite deletion vector paths (D-09, D-10, D-11)
             dv = data_file.get("deletion_vector")
             if dv and isinstance(dv, dict):

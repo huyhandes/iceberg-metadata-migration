@@ -14,6 +14,7 @@ class ManifestListFile(BaseModel):
     s3_key: str
     avro_schema: dict[str, Any]  # writer_schema preserved for Phase 2 round-trip writes
     records: list[dict[str, Any]]  # Each record has 'manifest_path' field
+    codec: str = "null"  # Avro container codec — preserved for round-trip fidelity
 
 
 class ManifestFile(BaseModel):
@@ -25,6 +26,7 @@ class ManifestFile(BaseModel):
     s3_key: str
     avro_schema: dict[str, Any]  # writer_schema preserved for Phase 2 round-trip writes
     records: list[dict[str, Any]]  # Each record has 'data_file' dict with 'file_path'
+    codec: str = "null"  # Avro container codec — preserved for round-trip fidelity
 
 
 class IcebergMetadataGraph(BaseModel):

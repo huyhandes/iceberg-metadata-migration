@@ -111,3 +111,17 @@ def test_rewrite_engine_uses_migrated_keys(s3_client):
         assert "_migrated/" in key
     for key in result.manifest_bytes:
         assert "_migrated/" in key
+
+
+def test_remap_key_to_migrated_strips_gz():
+    """remap_key_to_migrated strips .gz from compressed metadata filenames."""
+    key = "warehouse/db/table/metadata/00001-abc.gz.metadata.json"
+    result = remap_key_to_migrated(key, "warehouse/db/table")
+    assert result == "warehouse/db/table/_migrated/metadata/00001-abc.metadata.json"
+
+
+def test_remap_key_to_migrated_plain_key_unchanged():
+    """remap_key_to_migrated does not modify plain .metadata.json filenames."""
+    key = "warehouse/db/table/metadata/v1.metadata.json"
+    result = remap_key_to_migrated(key, "warehouse/db/table")
+    assert result == "warehouse/db/table/_migrated/metadata/v1.metadata.json"

@@ -91,11 +91,12 @@ def load_full_graph(
 
         # Load new manifest list
         ml_bytes = get_s3_object_bytes(s3_client, bucket, ml_key)
-        ml_schema, ml_records = load_avro_with_schema(ml_bytes)
+        ml_schema, ml_records, ml_codec = load_avro_with_schema(ml_bytes)
         ml_file = ManifestListFile(
             s3_key=ml_key,
             avro_schema=ml_schema,
             records=ml_records,
+            codec=ml_codec,
         )
         new_manifest_lists.append(ml_file)
         loaded_ml_keys.add(ml_key)
@@ -135,11 +136,12 @@ def _load_manifests_from_records(
         if m_key in loaded_m_keys:
             continue
         m_bytes = get_s3_object_bytes(s3_client, bucket, m_key)
-        m_schema, m_records = load_avro_with_schema(m_bytes)
+        m_schema, m_records, m_codec = load_avro_with_schema(m_bytes)
         m_file = ManifestFile(
             s3_key=m_key,
             avro_schema=m_schema,
             records=m_records,
+            codec=m_codec,
         )
         manifests_out.append(m_file)
         loaded_m_keys.add(m_key)

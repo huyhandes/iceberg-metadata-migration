@@ -143,16 +143,13 @@ def run_athena_query(
             rows = results["ResultSet"]["Rows"]
             # First row is header, skip it
             return [
-                [col.get("VarCharValue", "") for col in row["Data"]]
-                for row in rows[1:]
+                [col.get("VarCharValue", "") for col in row["Data"]] for row in rows[1:]
             ]
         elif state in ("FAILED", "CANCELLED"):
             reason = status["QueryExecution"]["Status"].get(
                 "StateChangeReason", "unknown"
             )
-            raise RuntimeError(
-                f"Athena query {state}: {reason}\nQuery: {query}"
-            )
+            raise RuntimeError(f"Athena query {state}: {reason}\nQuery: {query}")
 
         time.sleep(2)
 

@@ -40,7 +40,7 @@ Integration tests (moto): `tests/test_rewrite/test_integration.py`, `tests/test_
 
 ### Tier 2: Local Catalog Tests (Docker)
 
-Tests migration against real Iceberg metadata produced by different catalog types on MinIO.
+Tests migration against real Iceberg metadata produced by different catalog types on MinIO. These tests exercise real catalog-produced metadata including gzip-compressed metadata.json (Lakekeeper) and deflate-coded Avro manifests (all Java catalogs).
 
 **Prerequisites:**
 - Docker running
@@ -115,3 +115,6 @@ Tests create Avro data in-memory using fastavro. See `tests/fixtures/v3_manifest
 7. **Error propagation** — S3/Glue failures produce correct exit codes
 8. **Cross-catalog compatibility** — metadata from REST, SQL, HMS catalogs all migrate correctly
 9. **Athena queryability** — migrated tables are queryable end-to-end
+10. **Compression handling** — gzip-compressed metadata.json is decompressed before parsing; compression suffix stripped from output keys
+11. **Avro codec round-trip** — codec read from source Avro header is preserved in rewritten output
+12. **Format-version gate** — format-version 4+ rejected with clear error before any rewriting

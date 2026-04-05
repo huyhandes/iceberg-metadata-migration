@@ -24,7 +24,6 @@ from tests.integration.conftest import (
     AWS_BUCKET,
     AWS_REGION,
     GLUE_DB,
-    MINIO_BUCKET,
     cleanup_glue_table,
     cleanup_s3_prefix,
     run_athena_query,
@@ -97,12 +96,18 @@ def test_migrated_table_queryable_via_athena(
         result = runner.invoke(
             app,
             [
-                "--table-location", table_location,
-                "--source-prefix", src_prefix,
-                "--dest-prefix", dst_prefix,
-                "--glue-database", GLUE_DB,
-                "--glue-table", glue_table,
-                "--aws-region", AWS_REGION,
+                "--table-location",
+                table_location,
+                "--source-prefix",
+                src_prefix,
+                "--dest-prefix",
+                dst_prefix,
+                "--glue-database",
+                GLUE_DB,
+                "--glue-table",
+                glue_table,
+                "--aws-region",
+                AWS_REGION,
             ],
         )
 
@@ -119,9 +124,7 @@ def test_migrated_table_queryable_via_athena(
         )
         assert len(rows) == 1, f"Expected 1 result row, got {len(rows)}"
         row_count = int(rows[0][0])
-        assert row_count == 10, (
-            f"Expected 10 rows (seeded), got {row_count}"
-        )
+        assert row_count == 10, f"Expected 10 rows (seeded), got {row_count}"
 
         # 3b: Data integrity — spot check specific values
         data_rows = run_athena_query(

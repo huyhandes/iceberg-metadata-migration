@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 import fastavro
 import orjson
 
+from iceberg_migrate.discovery.compression import strip_compression_suffix
 from iceberg_migrate.models import IcebergMetadataGraph, ManifestListFile, ManifestFile
 from iceberg_migrate.rewrite.config import RewriteConfig
 
@@ -51,7 +52,7 @@ def _remap_snapshot_manifest_lists(metadata: dict[str, Any]) -> dict[str, Any]:
         if "manifest-list" in snap:
             path = snap["manifest-list"]
             if path.startswith(old_prefix):
-                snap["manifest-list"] = new_prefix + path[len(old_prefix):]
+                snap["manifest-list"] = new_prefix + path[len(old_prefix) :]
     return m
 
 
@@ -72,7 +73,7 @@ def _remap_manifest_paths(
     for record in result:
         path = record.get("manifest_path", "")
         if path and path.startswith(old_prefix):
-            record["manifest_path"] = new_prefix + path[len(old_prefix):]
+            record["manifest_path"] = new_prefix + path[len(old_prefix) :]
     return result
 
 
@@ -106,17 +107,17 @@ def remap_key_to_migrated(key: str, table_prefix: str) -> str:
     Given table_prefix='warehouse/db/table' and key='warehouse/db/table/metadata/v1.metadata.json',
     returns 'warehouse/db/table/_migrated/metadata/v1.metadata.json'.
 
-    Gzip-compressed metadata files (*.gz.metadata.json) are renamed to
-    *.metadata.json because the _migrated/ copy is written as plain JSON.
-    Athena uses the file extension to determine decoding, so removing .gz
-    prevents it from attempting to gzip-decompress plain JSON content.
+    Compressed metadata files (*.gz.metadata.json, etc.) are renamed to *.metadata.json
+    because the _migrated/ copy is written as plain JSON. Athena uses file extension to
+    determine encoding, so the extension must match content.
     """
     prefix = table_prefix.rstrip("/")
     suffix = key[len(prefix) + 1 :] if key.startswith(prefix + "/") else key
-    # Strip .gz compression marker from metadata filenames
-    if suffix.endswith(".gz.metadata.json"):
-        suffix = suffix[: -len(".gz.metadata.json")] + ".metadata.json"
+    suffix = strip_compression_suffix(suffix)
     return f"{prefix}/_migrated/{suffix}"
+
+
+SUPPORTED_FORMAT_VERSIONS: frozenset[int] = frozenset({1, 2, 3})
 
 
 class RewriteEngine:
@@ -156,6 +157,14 @@ class RewriteEngine:
         Returns:
             RewriteResult with fully rewritten graph and serialized bytes.
         """
+        # Gate: reject unknown format versions before any rewriting
+        format_version = graph.metadata.get("format-version", 1)
+        if format_version not in SUPPORTED_FORMAT_VERSIONS:
+            raise ValueError(
+                f"Unsupported Iceberg format-version {format_version!r}. "
+                + f"Supported versions: {sorted(SUPPORTED_FORMAT_VERSIONS)}"
+            )
+
         # Step 0: Ensure ALL snapshots' files are loaded
         full_graph = load_full_graph(graph, s3_client, bucket, table_prefix)
 
@@ -183,7 +192,9 @@ class RewriteEngine:
                 records=new_records,
             )
             rewritten_ml_list.append(new_ml)
-            ml_bytes_map[ml.s3_key] = self._serialize_avro(ml.avro_schema, new_records)
+            ml_bytes_map[ml.s3_key] = self._serialize_avro(
+                ml.avro_schema, new_records, ml.codec
+            )
 
         # Step 4: Rewrite all manifest records and serialize to Avro
         rewritten_m_list = []
@@ -196,7 +207,9 @@ class RewriteEngine:
                 records=new_records,
             )
             rewritten_m_list.append(new_m)
-            m_bytes_map[m.s3_key] = self._serialize_avro(m.avro_schema, new_records)
+            m_bytes_map[m.s3_key] = self._serialize_avro(
+                m.avro_schema, new_records, m.codec
+            )
 
         # Step 6: Remap all keys to _migrated/ paths
         migrated_metadata_key = remap_key_to_migrated(
@@ -244,8 +257,10 @@ class RewriteEngine:
         )
 
     @staticmethod
-    def _serialize_avro(schema: dict[str, Any], records: list[dict[str, Any]]) -> bytes:
-        """Serialize records to Avro bytes using the given writer schema."""
+    def _serialize_avro(
+        schema: dict[str, Any], records: list[dict[str, Any]], codec: str = "null"
+    ) -> bytes:
+        """Serialize records to Avro bytes using the given writer schema and codec."""
         buf = io.BytesIO()
-        fastavro.writer(buf, schema, records)
+        fastavro.writer(buf, schema, records, codec=codec)
         return buf.getvalue()

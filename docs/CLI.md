@@ -76,3 +76,12 @@ iceberg-migrate migrate \
   --glue-database my_analytics \
   --glue-table user_events
 ```
+
+**Lakekeeper source (gzip-compressed metadata):**
+```bash
+# Lakekeeper writes .gz.metadata.json — the tool handles decompression automatically
+iceberg-migrate migrate \
+  --table-location s3://my-bucket/warehouse/analytics/events \
+  --source-prefix s3a://lakekeeper-minio/warehouse \
+  --dest-prefix s3://my-bucket/warehouse
+```

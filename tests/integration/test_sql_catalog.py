@@ -57,11 +57,15 @@ def test_sql_migration_rewrites_paths(minio_client):
     result = runner.invoke(
         app,
         [
-            "--table-location", table_location,
-            "--source-prefix", SRC_PREFIX,
-            "--dest-prefix", DST_PREFIX,
+            "--table-location",
+            table_location,
+            "--source-prefix",
+            SRC_PREFIX,
+            "--dest-prefix",
+            DST_PREFIX,
             "--dry-run",
-            "--aws-region", "us-east-1",
+            "--aws-region",
+            "us-east-1",
         ],
         env={
             "AWS_ACCESS_KEY_ID": "minioadmin",
