@@ -2,9 +2,18 @@
 
 Provides:
 - minio_client: boto3 S3 client pointed at local MinIO
-- sync_to_s3: copy objects from MinIO to real AWS S3
-- athena_query: run Athena query and poll for results
-- cleanup_s3: delete all objects under a prefix in AWS S3
+- aws_s3_client: boto3 S3 client for real AWS
+- glue_client: boto3 Glue client for real AWS
+- athena_client: boto3 Athena client for real AWS
+- emrserverless_client: boto3 EMR Serverless client for real AWS
+- migrated_tables: session fixture: sync and migrate all tables, yield, cleanup
+- upload_spark_scripts: upload all .py files from infra/spark_jobs/ to S3
+- run_glue_job: start a Glue job run and poll until completion
+- run_emr_job: start an EMR Serverless job run and poll until completion
+- read_job_results: read the results.json written by a Spark verification job
+- sync_minio_to_s3: copy objects from MinIO to real AWS S3
+- run_athena_query: run Athena query and poll for results
+- cleanup_s3_prefix: delete all objects under a prefix in AWS S3
 - cleanup_glue_table: drop a Glue table
 """
 
@@ -14,6 +23,7 @@ import json
 import os
 import pathlib
 import time
+from collections.abc import Generator
 from typing import TYPE_CHECKING, Any
 
 import boto3
@@ -94,12 +104,6 @@ def athena_client() -> AthenaClient:
 def emrserverless_client() -> EMRServerlessClient:
     """Boto3 EMR Serverless client for real AWS."""
     return boto3.client("emr-serverless", region_name=AWS_REGION)
-
-
-@pytest.fixture(scope="session")
-def glue_job_client() -> GlueClient:
-    """Boto3 Glue client for job runs."""
-    return boto3.client("glue", region_name=AWS_REGION)
 
 
 # ---------------------------------------------------------------------------
@@ -361,7 +365,7 @@ def migrated_tables(
     minio_client: S3Client,
     aws_s3_client: S3Client,
     glue_client: GlueClient,
-) -> list[tuple[str, str, str]]:
+) -> Generator[list[tuple[str, str, str]], None, None]:
     """Session fixture: upload spark scripts, sync and migrate all tables, yield, cleanup.
 
     Syncs all 3 namespaces × 2 tables from MinIO to AWS S3, runs the migration CLI
