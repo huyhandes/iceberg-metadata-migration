@@ -1,0 +1,131 @@
+"""EMR Serverless verification script for migrated Iceberg tables.
+
+Same 3 query scenarios as verify_glue.py but using plain SparkSession
+with the Glue Data Catalog configured as the Iceberg catalog (glue_catalog).
+
+Tables are referenced as: glue_catalog.{db}.{ns}_sample_table
+
+Writes a JSON object to {output_path}/results.json for test assertions.
+
+Arguments (passed via entryPointArguments in the EMR Serverless job run):
+  --output_path    S3 URI prefix for output
+  --glue_database  Glue database name
+  --namespace      Primary namespace
+  --cross_ns1      First namespace for cross-catalog join
+  --cross_ns2      Second namespace for cross-catalog join
+
+The EMR Serverless job run must include these sparkSubmitParameters:
+  --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+  --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog
+  --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog
+  --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+These are passed by run_emr_job() in conftest.py.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+
+import boto3
+from pyspark.sql import SparkSession
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+
+parser = argparse.ArgumentParser(description="EMR Serverless Iceberg validation")
+parser.add_argument("--output_path", required=True)
+parser.add_argument("--glue_database", required=True)
+parser.add_argument("--namespace", required=True)
+parser.add_argument("--cross_ns1", required=True)
+parser.add_argument("--cross_ns2", required=True)
+args = parser.parse_args()
+
+db = args.glue_database
+ns = args.namespace
+cross_ns1 = args.cross_ns1
+cross_ns2 = args.cross_ns2
+output_path = args.output_path.rstrip("/")
+
+# ---------------------------------------------------------------------------
+# SparkSession — Iceberg catalog configured via sparkSubmitParameters
+# ---------------------------------------------------------------------------
+
+spark = SparkSession.builder.appName("iceberg-emr-verify").getOrCreate()
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _s3_parts(uri: str) -> tuple[str, str]:
+    without_scheme = uri.removeprefix("s3://")
+    bucket, _, key = without_scheme.partition("/")
+    return bucket, key
+
+
+def put_results(s3_uri_prefix: str, results: dict) -> None:
+    bucket, key_prefix = _s3_parts(s3_uri_prefix)
+    key = key_prefix.rstrip("/") + "/results.json"
+    boto3.client("s3").put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=json.dumps(results).encode(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Query 1: Row count
+# ---------------------------------------------------------------------------
+
+count_rows = spark.sql(
+    f"SELECT COUNT(*) AS cnt FROM glue_catalog.`{db}`.`{ns}_sample_table`"
+).collect()
+row_count = int(count_rows[0]["cnt"])
+
+# ---------------------------------------------------------------------------
+# Query 2: Dimension JOIN
+# ---------------------------------------------------------------------------
+
+join_rows = spark.sql(
+    f"""
+    SELECT s.name, c.region
+    FROM glue_catalog.`{db}`.`{ns}_sample_table` s
+    JOIN glue_catalog.`{db}`.`{ns}_cities` c ON s.city = c.city_name
+    ORDER BY s.id
+    LIMIT 5
+    """
+).collect()
+join_results = [{"name": r["name"], "region": r["region"]} for r in join_rows]
+
+# ---------------------------------------------------------------------------
+# Query 3: Cross-catalog JOIN
+# ---------------------------------------------------------------------------
+
+cross_rows = spark.sql(
+    f"""
+    SELECT r.id, r.name AS rest_name, s.name AS sql_name
+    FROM glue_catalog.`{db}`.`{cross_ns1}_sample_table` r
+    JOIN glue_catalog.`{db}`.`{cross_ns2}_sample_table` s ON r.id = s.id
+    WHERE r.id <= 3
+    ORDER BY r.id
+    """
+).collect()
+cross_results = [
+    {"id": r["id"], "rest_name": r["rest_name"], "sql_name": r["sql_name"]}
+    for r in cross_rows
+]
+
+# ---------------------------------------------------------------------------
+# Write results
+# ---------------------------------------------------------------------------
+
+results = {
+    "row_count": row_count,
+    "join_rows": join_results,
+    "cross_join_rows": cross_results,
+}
+put_results(output_path, results)
+
+spark.stop()

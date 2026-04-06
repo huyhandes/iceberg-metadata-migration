@@ -32,6 +32,7 @@ CATALOG_NAMESPACES = {
 }
 
 TABLE_NAME = "sample_table"
+CITIES_TABLE_NAME = "cities"
 
 # ---------------------------------------------------------------------------
 # Shared table schema
@@ -110,6 +111,27 @@ def sample_data() -> pa.Table:
             ),
         },
         schema=TABLE_SCHEMA,
+    )
+
+
+CITIES_SCHEMA = pa.schema(
+    [
+        pa.field("city_name", pa.string()),
+        pa.field("region", pa.string()),
+        pa.field("country", pa.string()),
+    ]
+)
+
+
+def cities_data() -> pa.Table:
+    """Return a PyArrow table with 3 city rows for the dimension join test."""
+    return pa.table(
+        {
+            "city_name": ["Hanoi", "HCMC", "Danang"],
+            "region": ["Northern Vietnam", "Southern Vietnam", "Central Vietnam"],
+            "country": ["Vietnam", "Vietnam", "Vietnam"],
+        },
+        schema=CITIES_SCHEMA,
     )
 
 

@@ -17,6 +17,8 @@ from pyiceberg.io.pyarrow import PyArrowFileIO
 
 from infra.seed.common import (
     CATALOG_NAMESPACES,
+    CITIES_SCHEMA,
+    CITIES_TABLE_NAME,
     MINIO_ACCESS_KEY,
     MINIO_ENDPOINT,
     MINIO_REGION,
@@ -24,6 +26,7 @@ from infra.seed.common import (
     TABLE_NAME,
     TABLE_SCHEMA,
     WAREHOUSE,
+    cities_data,
     s3_properties,
     sample_data,
 )
@@ -152,6 +155,36 @@ def main() -> None:
     print(f"  Location: {metadata.location}")
     print(f"  Snapshots: {len(metadata.snapshots)}")
     print(f"  Metadata: {table.metadata_location}")
+
+    # Seed cities dimension table
+    cities_id = (namespace, CITIES_TABLE_NAME)
+    try:
+        catalog.drop_table(cities_id)
+        print(f"Dropped existing table: {namespace}.{CITIES_TABLE_NAME}")
+    except Exception:
+        pass
+
+    cities_prefix = f"{namespace}/{CITIES_TABLE_NAME}/"
+    for page in paginator.paginate(Bucket="warehouse", Prefix=cities_prefix):
+        objects = [{"Key": obj["Key"]} for obj in page.get("Contents", [])]
+        if objects:
+            s3.delete_objects(Bucket="warehouse", Delete={"Objects": objects})
+
+    cities_table = catalog.create_table(
+        identifier=cities_id,
+        schema=CITIES_SCHEMA,
+        location=f"{WAREHOUSE}/{namespace}/{CITIES_TABLE_NAME}",
+    )
+    cities_table.io = PyArrowFileIO(
+        {
+            "s3.endpoint": MINIO_ENDPOINT,
+            "s3.access-key-id": MINIO_ACCESS_KEY,
+            "s3.secret-access-key": MINIO_SECRET_KEY,
+            "s3.region": MINIO_REGION,
+        }
+    )
+    cities_table.append(cities_data())
+    print(f"Created {namespace}.{CITIES_TABLE_NAME}")
 
 
 if __name__ == "__main__":
