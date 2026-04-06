@@ -1,142 +1,112 @@
-"""AWS integration test: full round-trip migration with Athena verification.
+"""AWS integration test: Athena verification of migrated Iceberg tables.
 
 Requires:
-  - Docker compose with all profiles up and seeded
-  - AWS_PROFILE configured in .env
-  - Terraform infra applied (Glue DB, Athena workgroup)
+  - Docker compose with all profiles up and seeded (just seed-all)
+  - AWS credentials configured
+  - Terraform infra applied (just tf-apply)
+  - .env with AWS_TEST_BUCKET, GLUE_DATABASE, ATHENA_WORKGROUP
 
-Flow per catalog type:
-  1. Sync data from MinIO to AWS S3
-  2. Run migration CLI (rewrite paths, register in Glue)
-  3. Athena SELECT to verify queryability
-  4. Cleanup (S3 objects + Glue table)
+Migration is handled by the session-scoped `migrated_tables` fixture in conftest.py.
+This file only exercises Athena queries.
+
+Queries verified per namespace:
+  1. Row count (SELECT COUNT(*))              → expect 10
+  2. Dimension JOIN (sample_table ⋈ cities)   → expect 5 rows with region populated
+  3. Cross-catalog JOIN (rest_ns ⋈ sql_ns)    → expect 3 rows with matching names
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import boto3
 import pytest
-from typer.testing import CliRunner
 
-from iceberg_migrate.cli import app
 from tests.integration.conftest import (
-    AWS_BUCKET,
     AWS_REGION,
     GLUE_DB,
-    cleanup_glue_table,
-    cleanup_s3_prefix,
     run_athena_query,
-    sync_minio_to_s3,
 )
 
 if TYPE_CHECKING:
     from mypy_boto3_athena import AthenaClient
-    from mypy_boto3_glue import GlueClient
-    from mypy_boto3_s3 import S3Client
-
-# ---------------------------------------------------------------------------
-# Per-catalog test parameters
-# ---------------------------------------------------------------------------
 
 CATALOG_CONFIGS = [
-    pytest.param(
-        "rest_ns",
-        "sample_table",
-        id="rest",
-    ),
-    pytest.param(
-        "sql_ns",
-        "sample_table",
-        id="sql",
-    ),
-    pytest.param(
-        "hms_ns",
-        "sample_table",
-        id="hms",
-    ),
+    pytest.param("rest_ns", "sample_table", id="rest"),
+    pytest.param("sql_ns", "sample_table", id="sql"),
+    pytest.param("hms_ns", "sample_table", id="hms"),
 ]
 
-runner = CliRunner()
 
-
-# ---------------------------------------------------------------------------
-# Test
-# ---------------------------------------------------------------------------
+@pytest.fixture(scope="session")
+def athena_client() -> "AthenaClient":
+    return boto3.client("athena", region_name=AWS_REGION)
 
 
 @pytest.mark.integration
 @pytest.mark.parametrize("namespace,table_name", CATALOG_CONFIGS)
-def test_migrated_table_queryable_via_athena(
+def test_athena_row_count(
     namespace: str,
     table_name: str,
-    minio_client: S3Client,
-    aws_s3_client: S3Client,
-    glue_client: GlueClient,
-    athena_client: AthenaClient,
-):
-    """Full round-trip: seed on MinIO -> sync to S3 -> migrate -> Athena SELECT."""
-
+    migrated_tables,
+    athena_client: "AthenaClient",
+) -> None:
+    """Athena COUNT(*) on migrated sample_table returns 10 seeded rows."""
     glue_table = f"{namespace}_{table_name}"
-    s3_prefix = f"warehouse/{namespace}/"
+    rows = run_athena_query(
+        athena_client,
+        f"SELECT COUNT(*) AS cnt FROM {GLUE_DB}.{glue_table}",
+    )
+    assert len(rows) == 1
+    assert int(rows[0][0]) == 10, f"Expected 10 rows, got {rows[0][0]}"
 
-    try:
-        # Step 1: Sync from MinIO to AWS S3
-        count = sync_minio_to_s3(minio_client, aws_s3_client, namespace)
-        assert count > 0, (
-            f"No objects synced for {namespace}. "
-            f"Did you seed? Run: uv run python infra/seed/seed_{namespace.replace('_ns', '')}.py"
+
+@pytest.mark.integration
+@pytest.mark.parametrize("namespace,table_name", CATALOG_CONFIGS)
+def test_athena_dimension_join(
+    namespace: str,
+    table_name: str,
+    migrated_tables,
+    athena_client: "AthenaClient",
+) -> None:
+    """Athena JOIN of sample_table with cities returns 5 rows with region populated."""
+    glue_table = f"{namespace}_{table_name}"
+    cities_table = f"{namespace}_cities"
+    rows = run_athena_query(
+        athena_client,
+        f"""
+        SELECT s.name, c.region
+        FROM {GLUE_DB}.{glue_table} s
+        JOIN {GLUE_DB}.{cities_table} c ON s.city = c.city_name
+        ORDER BY s.id
+        LIMIT 5
+        """,
+    )
+    assert len(rows) == 5, f"Expected 5 rows from dimension join, got {len(rows)}"
+    regions = {row[1] for row in rows}
+    assert regions <= {"Northern Vietnam", "Southern Vietnam", "Central Vietnam"}, (
+        f"Unexpected region values: {regions}"
+    )
+
+
+@pytest.mark.integration
+def test_athena_cross_catalog_join(
+    migrated_tables,
+    athena_client: "AthenaClient",
+) -> None:
+    """Athena JOIN of rest_ns and sql_ns tables returns 3 rows with matching names."""
+    rows = run_athena_query(
+        athena_client,
+        f"""
+        SELECT r.id, r.name AS rest_name, s.name AS sql_name
+        FROM {GLUE_DB}.rest_ns_sample_table r
+        JOIN {GLUE_DB}.sql_ns_sample_table s ON r.id = s.id
+        WHERE r.id <= 3
+        ORDER BY r.id
+        """,
+    )
+    assert len(rows) == 3, f"Expected 3 rows from cross-catalog join, got {len(rows)}"
+    for row in rows:
+        assert row[1] == row[2], (
+            f"Names should match across catalogs: rest={row[1]}, sql={row[2]}"
         )
-
-        # Step 2: Run migration CLI
-        table_location = f"s3://{AWS_BUCKET}/warehouse/{namespace}/{table_name}"
-        src_prefix = f"s3://warehouse/{namespace}"
-        dst_prefix = f"s3://{AWS_BUCKET}/warehouse/{namespace}"
-
-        result = runner.invoke(
-            app,
-            [
-                "--table-location",
-                table_location,
-                "--source-prefix",
-                src_prefix,
-                "--dest-prefix",
-                dst_prefix,
-                "--glue-database",
-                GLUE_DB,
-                "--glue-table",
-                glue_table,
-                "--aws-region",
-                AWS_REGION,
-            ],
-        )
-
-        assert result.exit_code == 0, (
-            f"Migration CLI failed for {namespace} with exit {result.exit_code}.\n"
-            f"Output:\n{result.output}"
-        )
-
-        # Step 3: Verify via Athena
-        # 3a: Row count
-        rows = run_athena_query(
-            athena_client,
-            f"SELECT COUNT(*) as cnt FROM {GLUE_DB}.{glue_table}",
-        )
-        assert len(rows) == 1, f"Expected 1 result row, got {len(rows)}"
-        row_count = int(rows[0][0])
-        assert row_count == 10, f"Expected 10 rows (seeded), got {row_count}"
-
-        # 3b: Data integrity — spot check specific values
-        data_rows = run_athena_query(
-            athena_client,
-            f"SELECT id, name FROM {GLUE_DB}.{glue_table} ORDER BY id LIMIT 3",
-        )
-        assert len(data_rows) == 3, f"Expected 3 rows, got {len(data_rows)}"
-        assert data_rows[0][1] == "Alice", f"Expected Alice, got {data_rows[0][1]}"
-        assert data_rows[1][1] == "Bob", f"Expected Bob, got {data_rows[1][1]}"
-        assert data_rows[2][1] == "Charlie", f"Expected Charlie, got {data_rows[2][1]}"
-
-    finally:
-        # Step 4: Cleanup — always runs, even on test failure
-        cleanup_s3_prefix(aws_s3_client, AWS_BUCKET, s3_prefix)
-        cleanup_glue_table(glue_client, GLUE_DB, glue_table)
