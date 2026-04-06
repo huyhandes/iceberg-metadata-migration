@@ -219,36 +219,6 @@ just seed-all       # Seed MinIO with test tables (requires Docker)
 just test-local     # Integration tests against local Docker stack
 ```
 
-### AWS integration tests
-
-```bash
-cp .env.example .env
-# fill in AWS_TEST_BUCKET, AWS_REGION, etc.
-just tf-apply       # provision S3, Glue DB, Athena workgroup, EMR app
-just test-integration   # all 13 tests (Athena + Glue ETL + EMR Serverless)
-
-# run individual engines
-just test-athena
-just test-glue
-just test-emr
-```
-
----
-
-## Key Design Decisions
-
-| Decision | Why |
-|----------|-----|
-| `fastavro` over `apache-avro` | 8× faster; no `IgnoredLogicalType` bugs with Iceberg manifest schemas |
-| Direct S3 writes | PyIceberg's `StaticTable` is read-only — cannot write rewritten metadata back |
-| Direct Glue API | Avoids s3fs/FileIO dependency; sets identical Iceberg parameters |
-| `_migrated/` output dir | Original metadata may be overwritten by the next sync run; migrated copy is independent |
-| Bottom-up write order | If a write fails mid-way, lower-level files are consistent; metadata pointer updated last |
-| All-snapshot rewriting | Time-travel safety: historical snapshots reference old paths too |
-| Codec round-trip preservation | Prevents silently changing deflate → null or vice versa across query engines |
-| `.gz` extension stripping | Athena infers encoding from filename extension, not file magic bytes |
-| Format-version gate | Rejects v4+ to prevent silent corruption from unknown metadata fields |
-
 ---
 
 ## License
