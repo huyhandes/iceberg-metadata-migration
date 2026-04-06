@@ -1,6 +1,6 @@
 """Glue ETL verification script for migrated Iceberg tables.
 
-Runs 3 query scenarios against migrated Glue Catalog tables:
+Runs 3 query scenarios against migrated Glue Catalog tables via the Iceberg catalog:
   1. Row count on {namespace}_sample_table  → expect 10
   2. Dimension JOIN: {namespace}_sample_table ⋈ {namespace}_cities on city_name → expect 5 rows
   3. Cross-catalog JOIN: rest_ns_sample_table ⋈ sql_ns_sample_table on id → expect 3 rows
@@ -15,11 +15,10 @@ Required job arguments (passed via --key value in Glue job run):
   --cross_ns2      Second namespace for cross-catalog join (e.g., sql_ns)
 
 Prerequisites:
-  Glue job must have --datalake-formats iceberg in default_arguments (set via Terraform).
-  This enables Iceberg extensions on the SparkSession automatically.
-  Tables are referenced as {db}.{table} (2-part) — --datalake-formats iceberg
-  configures Glue Data Catalog as spark_catalog (the default Spark catalog),
-  so no catalog prefix is needed.
+  Glue job must have --datalake-formats iceberg (provides Iceberg JARs) and explicit
+  --conf for spark.sql.catalog.glue_catalog pointing to IcebergSparkCatalog + GlueCatalog
+  backend (set via Terraform). Tables are accessed as glue_catalog.{db}.{table}
+  — identical naming to EMR Serverless.
 """
 
 from __future__ import annotations
@@ -79,11 +78,11 @@ def put_results(s3_uri_prefix: str, results: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Load tables lazily — no action triggered until first count/iterator
+# Load tables via Iceberg catalog — glue_catalog.{db}.{table}
 # ---------------------------------------------------------------------------
 
-sample_df = spark.table(f"`{db}`.`{ns}_sample_table`")
-cities_df = spark.table(f"`{db}`.`{ns}_cities`")
+sample_df = spark.table(f"glue_catalog.`{db}`.`{ns}_sample_table`")
+cities_df = spark.table(f"glue_catalog.`{db}`.`{ns}_cities`")
 
 # ---------------------------------------------------------------------------
 # Query 1: Row count — df.count() avoids collecting a result set
@@ -112,8 +111,8 @@ join_results = [
 #           broadcast the filtered side (≤3 rows)
 # ---------------------------------------------------------------------------
 
-rest_df = spark.table(f"`{db}`.`{cross_ns1}_sample_table`").filter(col("id") <= 3)
-sql_df = spark.table(f"`{db}`.`{cross_ns2}_sample_table`").filter(col("id") <= 3)
+rest_df = spark.table(f"glue_catalog.`{db}`.`{cross_ns1}_sample_table`").filter(col("id") <= 3)
+sql_df = spark.table(f"glue_catalog.`{db}`.`{cross_ns2}_sample_table`").filter(col("id") <= 3)
 cross_df = (
     rest_df
     .join(broadcast(sql_df), "id")

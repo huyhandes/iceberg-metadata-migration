@@ -57,6 +57,18 @@ test-local:
 test-integration:
     uv run pytest -m integration -v
 
+# Run only Glue ETL integration tests
+test-glue:
+    uv run pytest tests/integration/test_glue_verify.py -m integration -v
+
+# Run only EMR Serverless integration tests
+test-emr:
+    uv run pytest tests/integration/test_emr_verify.py -m integration -v
+
+# Run only Athena integration tests
+test-athena:
+    uv run pytest tests/integration/test_athena_verify.py -m integration -v
+
 # Run everything
 test-all:
     uv run pytest -m "rest or sql or hms or integration" -v

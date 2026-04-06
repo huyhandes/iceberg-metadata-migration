@@ -41,12 +41,14 @@ parser.add_argument("--glue_database", required=True)
 parser.add_argument("--namespace", required=True)
 parser.add_argument("--cross_ns1", required=True)
 parser.add_argument("--cross_ns2", required=True)
+parser.add_argument("--aws_region", required=True)
 args = parser.parse_args()
 
 db = args.glue_database
 ns = args.namespace
 cross_ns1 = args.cross_ns1
 cross_ns2 = args.cross_ns2
+aws_region = args.aws_region
 output_path = args.output_path.rstrip("/")
 
 # ---------------------------------------------------------------------------
@@ -69,7 +71,7 @@ def _s3_parts(uri: str) -> tuple[str, str]:
 def put_results(s3_uri_prefix: str, results: dict) -> None:
     bucket, key_prefix = _s3_parts(s3_uri_prefix)
     key = key_prefix.rstrip("/") + "/results.json"
-    boto3.client("s3").put_object(
+    boto3.client("s3", region_name=aws_region).put_object(
         Bucket=bucket,
         Key=key,
         Body=json.dumps(results).encode(),

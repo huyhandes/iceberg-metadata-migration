@@ -77,6 +77,8 @@ def test_emr_verifies_migrated_table(
                 "rest_ns",
                 "--cross_ns2",
                 "sql_ns",
+                "--aws_region",
+                AWS_REGION,
             ],
         )
 

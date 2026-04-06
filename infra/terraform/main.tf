@@ -228,12 +228,17 @@ resource "aws_glue_job" "verify" {
     "--enable-glue-datacatalog" = "true"
     "--datalake-formats"        = "iceberg"
     "--enable-job-insights"     = "false"
+    "--conf"                    = "spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions --conf spark.sql.catalog.glue_catalog=org.apache.iceberg.spark.SparkCatalog --conf spark.sql.catalog.glue_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog --conf spark.sql.catalog.glue_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO"
   }
 
   glue_version      = "5.1"
   worker_type       = "G.1X"
   number_of_workers = 2
   timeout           = 15
+
+  execution_property {
+    max_concurrent_runs = 3
+  }
 
   tags = { Project = "iceberg-migration-tool" }
 }
