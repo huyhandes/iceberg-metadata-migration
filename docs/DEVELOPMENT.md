@@ -68,8 +68,13 @@ just tf-init
 just tf-apply
 
 # Run integration tests
-just test-integration
+just test-integration   # All engines (Athena + Glue ETL + EMR Serverless)
+just test-athena        # Athena only
+just test-glue          # Glue ETL only
+just test-emr           # EMR Serverless only
 ```
+
+Additional `.env` vars required for multi-engine tests: `EMR_APPLICATION_ID`, `EMR_JOB_ROLE_ARN`, `GLUE_JOB_NAME`.
 
 See [TESTING.md](TESTING.md) for full test strategy.
 

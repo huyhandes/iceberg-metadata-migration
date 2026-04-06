@@ -8,7 +8,10 @@ just test-rest         # REST catalog local tests
 just test-sql          # SQL catalog local tests
 just test-hms          # HMS catalog local tests
 just test-local        # All local catalog tests
-just test-integration  # Full AWS round-trip (requires .env configured)
+just test-integration  # Full AWS round-trip (all engines: Athena + Glue + EMR)
+just test-athena       # Athena integration tests only
+just test-glue         # Glue ETL integration tests only
+just test-emr          # EMR Serverless integration tests only
 just test-all          # Everything
 ```
 
@@ -61,26 +64,48 @@ just seed-all && just test-local     # All catalogs
 | `@pytest.mark.sql` | SQLite SQL | (none — MinIO only) |
 | `@pytest.mark.hms` | Hive Metastore | `hms` |
 
-### Tier 3: AWS Integration Tests (Athena)
+### Tier 3: AWS Integration Tests (Multi-Engine)
 
-Full round-trip: seed on MinIO -> sync to AWS S3 -> migrate -> Athena SELECT verification.
+Full round-trip: seed on MinIO -> sync to AWS S3 -> migrate -> engine-specific SELECT verification.
 
 **Prerequisites:**
-- Docker running + all catalogs seeded
+- Docker running + all catalogs seeded (`just seed-all`)
 - `AWS_PROFILE` configured in `.env`
 - Terraform infra applied (`just tf-apply`)
+- `.env` vars: `AWS_TEST_BUCKET`, `GLUE_DATABASE`, `ATHENA_WORKGROUP`, `EMR_APPLICATION_ID`, `EMR_JOB_ROLE_ARN`, `GLUE_JOB_NAME`
+
+Migration setup (sync + rewrite + Glue registration + Lake Formation per-table grants) is handled once by the session-scoped `migrated_tables` fixture in `conftest.py`. All three engine test files share this fixture.
+
+#### Athena (pyiceberg GlueCatalog)
+
+7 tests: 3 row count + 3 dimension join + 1 cross-catalog join, parametrized across `rest_ns`, `sql_ns`, `hms_ns` namespaces. Queries execute via Athena SQL against the Glue Catalog.
 
 ```bash
-just test-integration
-# or: uv run pytest -m integration -v
+just test-athena
+# or: uv run pytest tests/integration/test_athena_verify.py -m integration -v
 ```
 
-**What Athena verifies:**
-- Row count matches seeded data (10 rows)
-- Data integrity (specific column values match)
-- Proves the entire chain: Glue registration -> metadata.json -> Avro manifests -> data files
+#### Glue ETL 5.1
+
+3 tests (1 test function parametrized across 3 namespaces). Submits `verify_glue.py` as a Glue ETL job run. Uses explicit Iceberg `glue_catalog` configuration — `--datalake-formats iceberg` only provides Iceberg JARs; the named catalog is wired via `--conf` entries (SparkCatalog + GlueCatalog impl + S3FileIO). Tables accessed as `glue_catalog.{db}.{table}`. Each test verifies: row count (10), dimension JOIN (5 rows), cross-catalog JOIN (3 rows).
+
+```bash
+just test-glue
+# or: uv run pytest tests/integration/test_glue_verify.py -m integration -v
+```
+
+#### EMR Serverless (EMR 7.12.0)
+
+3 tests (1 test function parametrized across 3 namespaces). Submits `verify_emr.py` as an EMR Serverless Spark job. Uses identical `glue_catalog` Spark configuration to Glue ETL. Includes `--aws_region` argument so `boto3` uses the regional S3 endpoint (global endpoint times out in some regions). Same 3-query verification as Glue ETL.
+
+```bash
+just test-emr
+# or: uv run pytest tests/integration/test_emr_verify.py -m integration -v
+```
 
 **Cleanup:** Tests clean up S3 objects and Glue tables in `finally` blocks.
+
+**Total integration tests:** 13 (7 Athena + 3 Glue ETL + 3 EMR Serverless)
 
 ## Mocking Approach (Unit Tests)
 
@@ -114,7 +139,10 @@ Tests create Avro data in-memory using fastavro. See `tests/fixtures/v3_manifest
 6. **Idempotent registration** — Glue create vs. update behavior
 7. **Error propagation** — S3/Glue failures produce correct exit codes
 8. **Cross-catalog compatibility** — metadata from REST, SQL, HMS catalogs all migrate correctly
-9. **Athena queryability** — migrated tables are queryable end-to-end
+9. **Athena queryability** — migrated tables are queryable end-to-end via Athena SQL
 10. **Compression handling** — gzip-compressed metadata.json is decompressed before parsing; compression suffix stripped from output keys
 11. **Avro codec round-trip** — codec read from source Avro header is preserved in rewritten output
 12. **Format-version gate** — format-version 4+ rejected with clear error before any rewriting
+13. **Glue ETL queryability** — migrated tables are queryable via Glue ETL 5.1 Iceberg catalog
+14. **EMR Serverless queryability** — migrated tables are queryable via EMR Serverless Spark (EMR 7.12.0)
+15. **Cross-engine consistency** — all 3 engines read the same migrated metadata successfully
