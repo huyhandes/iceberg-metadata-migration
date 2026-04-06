@@ -21,6 +21,7 @@ import pytest
 
 if TYPE_CHECKING:
     from mypy_boto3_athena import AthenaClient
+    from mypy_boto3_emr_serverless import EMRServerlessClient
     from mypy_boto3_glue import GlueClient
     from mypy_boto3_s3 import S3Client
 
@@ -90,13 +91,13 @@ def athena_client() -> AthenaClient:
 
 
 @pytest.fixture(scope="session")
-def emrserverless_client():
+def emrserverless_client() -> EMRServerlessClient:
     """Boto3 EMR Serverless client for real AWS."""
     return boto3.client("emr-serverless", region_name=AWS_REGION)
 
 
 @pytest.fixture(scope="session")
-def glue_job_client():
+def glue_job_client() -> GlueClient:
     """Boto3 Glue client for job runs."""
     return boto3.client("glue", region_name=AWS_REGION)
 
