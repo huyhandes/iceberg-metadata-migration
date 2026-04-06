@@ -90,3 +90,152 @@ output "athena_workgroup" {
 output "region" {
   value = var.aws_region
 }
+
+# ---------------------------------------------------------------------------
+# Glue ETL job IAM role
+# ---------------------------------------------------------------------------
+
+resource "aws_iam_role" "glue_job_role" {
+  name = "iceberg-migration-glue-job-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "glue.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
+  tags = { Project = "iceberg-migration-tool" }
+}
+
+resource "aws_iam_role_policy" "glue_job_policy" {
+  name = "iceberg-migration-glue-job-policy"
+  role = aws_iam_role.glue_job_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
+        Resource = [
+          "arn:aws:s3:::${var.s3_bucket}",
+          "arn:aws:s3:::${var.s3_bucket}/*",
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["glue:GetTable", "glue:GetDatabase", "glue:GetPartitions", "glue:GetTables"]
+        Resource = ["*"]
+      },
+      {
+        Effect = "Allow"
+        Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = ["arn:aws:logs:*:*:/aws-glue/*"]
+      },
+    ]
+  })
+}
+
+# ---------------------------------------------------------------------------
+# EMR Serverless IAM role
+# ---------------------------------------------------------------------------
+
+resource "aws_iam_role" "emr_serverless_role" {
+  name = "iceberg-migration-emr-serverless-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "emr-serverless.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
+  tags = { Project = "iceberg-migration-tool" }
+}
+
+resource "aws_iam_role_policy" "emr_serverless_policy" {
+  name = "iceberg-migration-emr-serverless-policy"
+  role = aws_iam_role.emr_serverless_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
+        Resource = [
+          "arn:aws:s3:::${var.s3_bucket}",
+          "arn:aws:s3:::${var.s3_bucket}/*",
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["glue:GetTable", "glue:GetDatabase", "glue:GetPartitions", "glue:GetTables"]
+        Resource = ["*"]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents", "logs:DescribeLogGroups", "logs:DescribeLogStreams"]
+        Resource = ["*"]
+      },
+    ]
+  })
+}
+
+# ---------------------------------------------------------------------------
+# EMR Serverless application (pre-provisioned — stays warm between test runs)
+# ---------------------------------------------------------------------------
+
+resource "aws_emrserverless_application" "iceberg_test" {
+  name          = "iceberg-migration-test"
+  release_label = var.emr_release_label
+  type          = "SPARK"
+
+  tags = { Project = "iceberg-migration-tool" }
+}
+
+# ---------------------------------------------------------------------------
+# Glue ETL job definition
+# ---------------------------------------------------------------------------
+
+resource "aws_glue_job" "verify" {
+  name     = "iceberg-migration-verify"
+  role_arn = aws_iam_role.glue_job_role.arn
+
+  command {
+    name            = "glueetl"
+    script_location = "s3://${var.s3_bucket}/spark-jobs/verify_glue.py"
+    python_version  = "3"
+  }
+
+  default_arguments = {
+    "--job-language"            = "python"
+    "--enable-glue-datacatalog" = "true"
+    "--datalake-formats"        = "iceberg"
+    "--enable-job-insights"     = "false"
+  }
+
+  glue_version      = "4.0"
+  worker_type       = "G.1X"
+  number_of_workers = 2
+  timeout           = 10
+
+  tags = { Project = "iceberg-migration-tool" }
+}
+
+output "emr_application_id" {
+  value = aws_emrserverless_application.iceberg_test.id
+}
+
+output "emr_job_role_arn" {
+  value = aws_iam_role.emr_serverless_role.arn
+}
+
+output "glue_job_name" {
+  value = aws_glue_job.verify.name
+}
