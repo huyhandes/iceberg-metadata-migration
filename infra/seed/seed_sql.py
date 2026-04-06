@@ -11,9 +11,12 @@ from pyiceberg.catalog.sql import SqlCatalog
 
 from infra.seed.common import (
     CATALOG_NAMESPACES,
+    CITIES_SCHEMA,
+    CITIES_TABLE_NAME,
     TABLE_NAME,
     TABLE_SCHEMA,
     WAREHOUSE,
+    cities_data,
     s3_properties,
     sample_data,
 )
@@ -62,6 +65,21 @@ def main() -> None:
     print(f"  Location: {metadata.location}")
     print(f"  Snapshots: {len(metadata.snapshots)}")
     print(f"  Metadata: {table.metadata_location}")
+
+    # Seed cities dimension table
+    cities_id = (namespace, CITIES_TABLE_NAME)
+    try:
+        catalog.drop_table(cities_id)
+    except Exception:
+        pass
+
+    cities_table = catalog.create_table(
+        identifier=cities_id,
+        schema=CITIES_SCHEMA,
+        location=f"{WAREHOUSE}/{namespace}/{CITIES_TABLE_NAME}",
+    )
+    cities_table.append(cities_data())
+    print(f"Created {namespace}.{CITIES_TABLE_NAME}")
 
 
 if __name__ == "__main__":
