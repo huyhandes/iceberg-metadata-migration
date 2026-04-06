@@ -388,9 +388,7 @@ def migrated_tables(
     try:
         for namespace in NAMESPACES:
             count = sync_minio_to_s3(minio_client, aws_s3_client, namespace)
-            assert count > 0, (
-                f"No objects synced for {namespace}. Run: just seed-all"
-            )
+            assert count > 0, f"No objects synced for {namespace}. Run: just seed-all"
             synced_namespaces.append(namespace)
 
             src_prefix = f"s3://warehouse/{namespace}"
@@ -398,9 +396,7 @@ def migrated_tables(
 
             for table_name in TABLES_TO_MIGRATE:
                 glue_table = f"{namespace}_{table_name}"
-                table_location = (
-                    f"s3://{AWS_BUCKET}/warehouse/{namespace}/{table_name}"
-                )
+                table_location = f"s3://{AWS_BUCKET}/warehouse/{namespace}/{table_name}"
 
                 result = runner.invoke(
                     migrate_app,
@@ -434,8 +430,12 @@ def migrated_tables(
                 lf = boto3.client("lakeformation", region_name=AWS_REGION)
                 try:
                     lf.grant_permissions(
-                        Principal={"DataLakePrincipalIdentifier": "IAM_ALLOWED_PRINCIPALS"},
-                        Resource={"Table": {"DatabaseName": GLUE_DB, "Name": glue_table}},
+                        Principal={
+                            "DataLakePrincipalIdentifier": "IAM_ALLOWED_PRINCIPALS"
+                        },
+                        Resource={
+                            "Table": {"DatabaseName": GLUE_DB, "Name": glue_table}
+                        },
                         Permissions=["ALL"],
                     )
                 except Exception:

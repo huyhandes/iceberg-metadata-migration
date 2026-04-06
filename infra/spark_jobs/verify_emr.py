@@ -96,15 +96,13 @@ row_count = sample_df.count()
 # ---------------------------------------------------------------------------
 
 join_df = (
-    sample_df
-    .join(broadcast(cities_df), sample_df["city"] == cities_df["city_name"])
+    sample_df.join(broadcast(cities_df), sample_df["city"] == cities_df["city_name"])
     .select(sample_df["name"], cities_df["region"])
     .orderBy(sample_df["id"])
     .limit(5)
 )
 join_results = [
-    {"name": r["name"], "region": r["region"]}
-    for r in join_df.toLocalIterator()
+    {"name": r["name"], "region": r["region"]} for r in join_df.toLocalIterator()
 ]
 
 # ---------------------------------------------------------------------------
@@ -112,11 +110,14 @@ join_results = [
 #           broadcast the filtered side (≤3 rows)
 # ---------------------------------------------------------------------------
 
-rest_df = spark.table(f"glue_catalog.`{db}`.`{cross_ns1}_sample_table`").filter(col("id") <= 3)
-sql_df = spark.table(f"glue_catalog.`{db}`.`{cross_ns2}_sample_table`").filter(col("id") <= 3)
+rest_df = spark.table(f"glue_catalog.`{db}`.`{cross_ns1}_sample_table`").filter(
+    col("id") <= 3
+)
+sql_df = spark.table(f"glue_catalog.`{db}`.`{cross_ns2}_sample_table`").filter(
+    col("id") <= 3
+)
 cross_df = (
-    rest_df
-    .join(broadcast(sql_df), "id")
+    rest_df.join(broadcast(sql_df), "id")
     .select(
         rest_df["id"],
         rest_df["name"].alias("rest_name"),

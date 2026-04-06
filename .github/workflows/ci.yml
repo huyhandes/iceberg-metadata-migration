@@ -28,4 +28,8 @@ jobs:
         run: uv run basedpyright src/
 
       - name: Test
-        run: uv run pytest tests/ -x --ignore=tests/integration
+        env:
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+        run: unset AWS_PROFILE && uv run pytest tests/ -x --ignore=tests/integration
