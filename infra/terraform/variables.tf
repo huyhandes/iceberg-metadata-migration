@@ -11,5 +11,5 @@ variable "s3_bucket" {
 variable "emr_release_label" {
   description = "EMR release label for the Serverless Spark application"
   type        = string
-  default     = "emr-7.0.0"
+  default     = "emr-7.12.0"
 }

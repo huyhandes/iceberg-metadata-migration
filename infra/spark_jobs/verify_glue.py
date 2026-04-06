@@ -79,7 +79,7 @@ def put_results(s3_uri_prefix: str, results: dict) -> None:
 # ---------------------------------------------------------------------------
 
 count_rows = spark.sql(
-    f"SELECT COUNT(*) AS cnt FROM `{db}`.`{ns}_sample_table`"
+    f"SELECT COUNT(*) AS cnt FROM glue_catalog.`{db}`.`{ns}_sample_table`"
 ).collect()
 row_count = int(count_rows[0]["cnt"])
 
@@ -90,8 +90,8 @@ row_count = int(count_rows[0]["cnt"])
 join_rows = spark.sql(
     f"""
     SELECT s.name, c.region
-    FROM `{db}`.`{ns}_sample_table` s
-    JOIN `{db}`.`{ns}_cities` c ON s.city = c.city_name
+    FROM glue_catalog.`{db}`.`{ns}_sample_table` s
+    JOIN glue_catalog.`{db}`.`{ns}_cities` c ON s.city = c.city_name
     ORDER BY s.id
     LIMIT 5
     """
@@ -105,8 +105,8 @@ join_results = [{"name": r["name"], "region": r["region"]} for r in join_rows]
 cross_rows = spark.sql(
     f"""
     SELECT r.id, r.name AS rest_name, s.name AS sql_name
-    FROM `{db}`.`{cross_ns1}_sample_table` r
-    JOIN `{db}`.`{cross_ns2}_sample_table` s ON r.id = s.id
+    FROM glue_catalog.`{db}`.`{cross_ns1}_sample_table` r
+    JOIN glue_catalog.`{db}`.`{cross_ns2}_sample_table` s ON r.id = s.id
     WHERE r.id <= 3
     ORDER BY r.id
     """
