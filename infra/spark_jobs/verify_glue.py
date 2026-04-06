@@ -17,8 +17,9 @@ Required job arguments (passed via --key value in Glue job run):
 Prerequisites:
   Glue job must have --datalake-formats iceberg in default_arguments (set via Terraform).
   This enables Iceberg extensions on the SparkSession automatically.
-  Tables must be referenced as glue_catalog.{db}.{table} — --datalake-formats iceberg
-  registers a named catalog 'glue_catalog', not the default catalog.
+  Tables are referenced as {db}.{table} (2-part) — --datalake-formats iceberg
+  configures Glue Data Catalog as spark_catalog (the default Spark catalog),
+  so no catalog prefix is needed.
 """
 
 from __future__ import annotations
@@ -81,8 +82,8 @@ def put_results(s3_uri_prefix: str, results: dict) -> None:
 # Load tables lazily — no action triggered until first count/iterator
 # ---------------------------------------------------------------------------
 
-sample_df = spark.table(f"glue_catalog.`{db}`.`{ns}_sample_table`")
-cities_df = spark.table(f"glue_catalog.`{db}`.`{ns}_cities`")
+sample_df = spark.table(f"`{db}`.`{ns}_sample_table`")
+cities_df = spark.table(f"`{db}`.`{ns}_cities`")
 
 # ---------------------------------------------------------------------------
 # Query 1: Row count — df.count() avoids collecting a result set
@@ -111,8 +112,8 @@ join_results = [
 #           broadcast the filtered side (≤3 rows)
 # ---------------------------------------------------------------------------
 
-rest_df = spark.table(f"glue_catalog.`{db}`.`{cross_ns1}_sample_table`").filter(col("id") <= 3)
-sql_df = spark.table(f"glue_catalog.`{db}`.`{cross_ns2}_sample_table`").filter(col("id") <= 3)
+rest_df = spark.table(f"`{db}`.`{cross_ns1}_sample_table`").filter(col("id") <= 3)
+sql_df = spark.table(f"`{db}`.`{cross_ns2}_sample_table`").filter(col("id") <= 3)
 cross_df = (
     rest_df
     .join(broadcast(sql_df), "id")

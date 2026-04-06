@@ -425,6 +425,22 @@ def migrated_tables(
                 )
                 migrated.append((namespace, table_name, glue_table))
 
+                # Grant IAM_ALLOWED_PRINCIPALS on this table so Glue ETL
+                # and EMR Serverless execution roles (which only have IAM
+                # policies) can read it.  Lake Formation blocks glue:GetTable
+                # on tables without an explicit LF grant even when the IAM
+                # policy allows it.  The table creator (this process) has
+                # grant authority on tables it just registered.
+                lf = boto3.client("lakeformation", region_name=AWS_REGION)
+                try:
+                    lf.grant_permissions(
+                        Principal={"DataLakePrincipalIdentifier": "IAM_ALLOWED_PRINCIPALS"},
+                        Resource={"Table": {"DatabaseName": GLUE_DB, "Name": glue_table}},
+                        Permissions=["ALL"],
+                    )
+                except Exception:
+                    pass  # best-effort; tests will surface the error if access is blocked
+
         yield migrated
 
     finally:

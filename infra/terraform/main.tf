@@ -131,6 +131,11 @@ resource "aws_iam_role_policy" "glue_job_policy" {
         Resource = ["*"]
       },
       {
+        Effect   = "Allow"
+        Action   = ["lakeformation:GetDataAccess"]
+        Resource = ["*"]
+      },
+      {
         Effect = "Allow"
         Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = ["arn:aws:logs:*:*:/aws-glue/*"]
@@ -180,6 +185,11 @@ resource "aws_iam_role_policy" "emr_serverless_policy" {
       },
       {
         Effect   = "Allow"
+        Action   = ["lakeformation:GetDataAccess"]
+        Resource = ["*"]
+      },
+      {
+        Effect   = "Allow"
         Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents", "logs:DescribeLogGroups", "logs:DescribeLogStreams"]
         Resource = ["*"]
       },
@@ -220,7 +230,7 @@ resource "aws_glue_job" "verify" {
     "--enable-job-insights"     = "false"
   }
 
-  glue_version      = "4.0"
+  glue_version      = "5.1"
   worker_type       = "G.1X"
   number_of_workers = 2
   timeout           = 15
