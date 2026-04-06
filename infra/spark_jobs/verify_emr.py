@@ -29,6 +29,7 @@ import json
 
 import boto3
 from pyspark.sql import SparkSession
+from pyspark.sql.functions import broadcast, col
 
 # ---------------------------------------------------------------------------
 # Argument parsing
@@ -76,45 +77,54 @@ def put_results(s3_uri_prefix: str, results: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Query 1: Row count
+# Load tables lazily — no action triggered until first count/iterator
 # ---------------------------------------------------------------------------
 
-count_rows = spark.sql(
-    f"SELECT COUNT(*) AS cnt FROM glue_catalog.`{db}`.`{ns}_sample_table`"
-).collect()
-row_count = int(count_rows[0]["cnt"])
+sample_df = spark.table(f"glue_catalog.`{db}`.`{ns}_sample_table`")
+cities_df = spark.table(f"glue_catalog.`{db}`.`{ns}_cities`")
 
 # ---------------------------------------------------------------------------
-# Query 2: Dimension JOIN
+# Query 1: Row count — df.count() avoids collecting a result set
 # ---------------------------------------------------------------------------
 
-join_rows = spark.sql(
-    f"""
-    SELECT s.name, c.region
-    FROM glue_catalog.`{db}`.`{ns}_sample_table` s
-    JOIN glue_catalog.`{db}`.`{ns}_cities` c ON s.city = c.city_name
-    ORDER BY s.id
-    LIMIT 5
-    """
-).collect()
-join_results = [{"name": r["name"], "region": r["region"]} for r in join_rows]
+row_count = sample_df.count()
 
 # ---------------------------------------------------------------------------
-# Query 3: Cross-catalog JOIN
+# Query 2: Dimension JOIN — broadcast cities (3 rows), stream results lazily
 # ---------------------------------------------------------------------------
 
-cross_rows = spark.sql(
-    f"""
-    SELECT r.id, r.name AS rest_name, s.name AS sql_name
-    FROM glue_catalog.`{db}`.`{cross_ns1}_sample_table` r
-    JOIN glue_catalog.`{db}`.`{cross_ns2}_sample_table` s ON r.id = s.id
-    WHERE r.id <= 3
-    ORDER BY r.id
-    """
-).collect()
+join_df = (
+    sample_df
+    .join(broadcast(cities_df), sample_df["city"] == cities_df["city_name"])
+    .select(sample_df["name"], cities_df["region"])
+    .orderBy(sample_df["id"])
+    .limit(5)
+)
+join_results = [
+    {"name": r["name"], "region": r["region"]}
+    for r in join_df.toLocalIterator()
+]
+
+# ---------------------------------------------------------------------------
+# Query 3: Cross-catalog JOIN — filter before join to minimise shuffle,
+#           broadcast the filtered side (≤3 rows)
+# ---------------------------------------------------------------------------
+
+rest_df = spark.table(f"glue_catalog.`{db}`.`{cross_ns1}_sample_table`").filter(col("id") <= 3)
+sql_df = spark.table(f"glue_catalog.`{db}`.`{cross_ns2}_sample_table`").filter(col("id") <= 3)
+cross_df = (
+    rest_df
+    .join(broadcast(sql_df), "id")
+    .select(
+        rest_df["id"],
+        rest_df["name"].alias("rest_name"),
+        sql_df["name"].alias("sql_name"),
+    )
+    .orderBy("id")
+)
 cross_results = [
     {"id": r["id"], "rest_name": r["rest_name"], "sql_name": r["sql_name"]}
-    for r in cross_rows
+    for r in cross_df.toLocalIterator()
 ]
 
 # ---------------------------------------------------------------------------
