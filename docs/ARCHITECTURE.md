@@ -103,3 +103,12 @@ Position and equality delete manifests use `data_file.referenced_data_file` (fie
 
 **No cramjam needed**
 Stdlib `gzip` handles all observed compression formats. The extension-based dispatch table in `compression.py` is designed to add future codecs (zstd, snappy) as needed, but none have been required yet.
+
+**Glue 5.1 catalog naming**
+Glue ETL's `--datalake-formats iceberg` flag only provides Iceberg JARs and configures `spark_catalog` as the Hive metastore bridge. It does NOT create a named Iceberg catalog backed by Glue. To query Iceberg tables registered in Glue, you need explicit `--conf` entries that define `glue_catalog` as a named `SparkCatalog` with `GlueCatalog` impl and `S3FileIO`. Tables are then accessed as `glue_catalog.{db}.{table}`, identical to EMR Serverless. Without this, Spark only sees `spark_catalog` which uses Hive metastore semantics, not Iceberg.
+
+**Regional S3 endpoints (EMR Serverless)**
+In some AWS regions (e.g., ap-southeast-5 Jakarta), the global S3 endpoint times out for `boto3.client("s3").put_object()`. EMR Serverless jobs that write results back to S3 must use `boto3.client("s3", region_name=aws_region)` with the explicit region. The fix: `verify_emr.py` accepts `--aws_region` as a CLI argument, passed through from the test fixture.
+
+**Lake Formation per-table grants**
+Glue ETL and EMR Serverless execution roles have IAM policies allowing `glue:GetTable`, but Lake Formation blocks table access unless an explicit LF grant exists on each table. The Terraform `aws_lakeformation_permissions` resource only grants database-level access to `IAM_ALLOWED_PRINCIPALS`. Per-table grants must be applied after each table is registered — the `migrated_tables` fixture in `conftest.py` calls `lf.grant_permissions()` on every migrated table.
