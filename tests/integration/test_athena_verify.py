@@ -19,11 +19,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import boto3
 import pytest
 
 from tests.integration.conftest import (
-    AWS_REGION,
     GLUE_DB,
     run_athena_query,
 )
@@ -36,11 +34,6 @@ CATALOG_CONFIGS = [
     pytest.param("sql_ns", "sample_table", id="sql"),
     pytest.param("hms_ns", "sample_table", id="hms"),
 ]
-
-
-@pytest.fixture(scope="session")
-def athena_client() -> "AthenaClient":
-    return boto3.client("athena", region_name=AWS_REGION)
 
 
 @pytest.mark.integration
