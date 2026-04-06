@@ -223,7 +223,7 @@ resource "aws_glue_job" "verify" {
   glue_version      = "4.0"
   worker_type       = "G.1X"
   number_of_workers = 2
-  timeout           = 10
+  timeout           = 15
 
   tags = { Project = "iceberg-migration-tool" }
 }

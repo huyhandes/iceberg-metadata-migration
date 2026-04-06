@@ -55,7 +55,7 @@ def glue_job_client() -> "GlueClient":
 @pytest.mark.parametrize("namespace", CATALOG_CONFIGS)
 def test_glue_verifies_migrated_table(
     namespace: str,
-    migrated_tables,
+    migrated_tables: list[tuple[str, str, str]],
     glue_job_client: "GlueClient",
     aws_s3_client: "S3Client",
 ) -> None:

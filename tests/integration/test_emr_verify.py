@@ -22,7 +22,6 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING
 
-import boto3
 import pytest
 
 from tests.integration.conftest import (
@@ -49,16 +48,11 @@ CATALOG_CONFIGS = [
 EMR_SCRIPT_S3_URI = f"s3://{AWS_BUCKET}/spark-jobs/verify_emr.py"
 
 
-@pytest.fixture(scope="session")
-def emrserverless_client() -> "EMRServerlessClient":
-    return boto3.client("emr-serverless", region_name=AWS_REGION)
-
-
 @pytest.mark.integration
 @pytest.mark.parametrize("namespace", CATALOG_CONFIGS)
 def test_emr_verifies_migrated_table(
     namespace: str,
-    migrated_tables,
+    migrated_tables: list[tuple[str, str, str]],
     emrserverless_client: "EMRServerlessClient",
     aws_s3_client: "S3Client",
 ) -> None:

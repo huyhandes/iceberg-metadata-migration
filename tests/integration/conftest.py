@@ -207,7 +207,7 @@ def upload_spark_scripts(s3_client: S3Client) -> None:
 
 
 def run_glue_job(
-    client: Any,
+    client: "GlueClient",
     job_name: str,
     arguments: dict[str, str],
     timeout: int = 600,
@@ -259,7 +259,7 @@ EMR_SERVERLESS_SPARK_CONF = (
 
 
 def run_emr_job(
-    client: Any,
+    client: "EMRServerlessClient",
     application_id: str,
     execution_role_arn: str,
     script_s3_uri: str,

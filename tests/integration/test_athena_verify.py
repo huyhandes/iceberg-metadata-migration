@@ -41,7 +41,7 @@ CATALOG_CONFIGS = [
 def test_athena_row_count(
     namespace: str,
     table_name: str,
-    migrated_tables,
+    migrated_tables: list[tuple[str, str, str]],
     athena_client: "AthenaClient",
 ) -> None:
     """Athena COUNT(*) on migrated sample_table returns 10 seeded rows."""
@@ -59,7 +59,7 @@ def test_athena_row_count(
 def test_athena_dimension_join(
     namespace: str,
     table_name: str,
-    migrated_tables,
+    migrated_tables: list[tuple[str, str, str]],
     athena_client: "AthenaClient",
 ) -> None:
     """Athena JOIN of sample_table with cities returns 5 rows with region populated."""
@@ -84,7 +84,7 @@ def test_athena_dimension_join(
 
 @pytest.mark.integration
 def test_athena_cross_catalog_join(
-    migrated_tables,
+    migrated_tables: list[tuple[str, str, str]],
     athena_client: "AthenaClient",
 ) -> None:
     """Athena JOIN of rest_ns and sql_ns tables returns 3 rows with matching names."""
