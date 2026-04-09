@@ -26,7 +26,7 @@ from infra.seed.common import (
     WAREHOUSE,
     cities_data,
     s3_properties,
-    sample_data,
+    seed_table_with_history,
 )
 
 # Separate SQLite DB from the sql_ns seed to avoid namespace collisions
@@ -65,7 +65,7 @@ def main() -> None:
         schema=TABLE_SCHEMA,
         location=f"{WAREHOUSE}/{namespace}/{TABLE_NAME}",
     )
-    table.append(sample_data())
+    seed_table_with_history(table)
 
     # Verify
     table = catalog.load_table(table_id)

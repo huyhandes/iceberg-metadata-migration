@@ -28,7 +28,7 @@ from infra.seed.common import (
     WAREHOUSE,
     cities_data,
     s3_properties,
-    sample_data,
+    seed_table_with_history,
 )
 
 LAKEKEEPER_URI = os.environ.get("LAKEKEEPER_URI", "http://localhost:8181/catalog")
@@ -146,7 +146,7 @@ def main() -> None:
             "s3.region": MINIO_REGION,
         }
     )
-    table.append(sample_data())
+    seed_table_with_history(table)
 
     # Verify
     table = catalog.load_table(table_id)
