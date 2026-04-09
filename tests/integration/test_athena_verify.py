@@ -135,7 +135,7 @@ def test_athena_time_travel_snapshot_1(
     # Row count
     rows = run_athena_query(
         athena_client,
-        f'SELECT COUNT(*) AS cnt FROM {GLUE_DB}.{glue_table} FOR TIMESTAMP AS OF TIMESTAMP \'{s1_ts}\'',
+        f"SELECT COUNT(*) AS cnt FROM {GLUE_DB}.{glue_table} FOR TIMESTAMP AS OF TIMESTAMP '{s1_ts}'",
     )
     assert len(rows) == 1
     assert int(rows[0][0]) == 5, f"S1: Expected 5 rows, got {rows[0][0]}"
@@ -143,7 +143,7 @@ def test_athena_time_travel_snapshot_1(
     # Sum of amounts
     rows = run_athena_query(
         athena_client,
-        f'SELECT CAST(SUM(amount) AS DOUBLE) AS total FROM {GLUE_DB}.{glue_table} FOR TIMESTAMP AS OF TIMESTAMP \'{s1_ts}\'',
+        f"SELECT CAST(SUM(amount) AS DOUBLE) AS total FROM {GLUE_DB}.{glue_table} FOR TIMESTAMP AS OF TIMESTAMP '{s1_ts}'",
     )
     assert len(rows) == 1
     assert abs(float(rows[0][0]) - 801.5) < 0.01, (
@@ -170,7 +170,7 @@ def test_athena_time_travel_snapshot_2(
     # Row count
     rows = run_athena_query(
         athena_client,
-        f'SELECT COUNT(*) AS cnt FROM {GLUE_DB}.{glue_table} FOR TIMESTAMP AS OF TIMESTAMP \'{s2_ts}\'',
+        f"SELECT COUNT(*) AS cnt FROM {GLUE_DB}.{glue_table} FOR TIMESTAMP AS OF TIMESTAMP '{s2_ts}'",
     )
     assert len(rows) == 1
     assert int(rows[0][0]) == 5, f"S2: Expected 5 rows, got {rows[0][0]}"
@@ -178,7 +178,7 @@ def test_athena_time_travel_snapshot_2(
     # Sum of amounts
     rows = run_athena_query(
         athena_client,
-        f'SELECT CAST(SUM(amount) AS DOUBLE) AS total FROM {GLUE_DB}.{glue_table} FOR TIMESTAMP AS OF TIMESTAMP \'{s2_ts}\'',
+        f"SELECT CAST(SUM(amount) AS DOUBLE) AS total FROM {GLUE_DB}.{glue_table} FOR TIMESTAMP AS OF TIMESTAMP '{s2_ts}'",
     )
     assert len(rows) == 1
     assert abs(float(rows[0][0]) - 2387.25) < 0.01, (
