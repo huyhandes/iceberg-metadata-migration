@@ -413,14 +413,17 @@ def migrated_tables(
     minio_client: S3Client,
     aws_s3_client: S3Client,
     glue_client: GlueClient,
-) -> Generator[list[tuple[str, str, str]], None, None]:
+) -> Generator[list[tuple[str, str, str, list[int]]], None, None]:
     """Session fixture: upload spark scripts, sync and migrate all tables, yield, cleanup.
 
-    Syncs all 3 namespaces × 2 tables from MinIO to AWS S3, runs the migration CLI
-    for each, and registers all 6 tables in Glue. Cleans up at session end.
+    Syncs all 3 namespaces x 2 tables from MinIO to AWS S3, runs the migration CLI
+    for each, and registers all 6 tables in Glue. Reads snapshot timestamps from
+    migrated metadata.json for time-travel tests. Cleans up at session end.
 
     Yields:
-        List of (namespace, table_name, glue_table_name) for every migrated table.
+        List of (namespace, table_name, glue_table, snapshot_timestamps_ms)
+        for every migrated table. snapshot_timestamps_ms is populated for
+        sample_table (3 values) and empty for cities.
     """
     from typer.testing import CliRunner
 
@@ -430,7 +433,7 @@ def migrated_tables(
 
     upload_spark_scripts(aws_s3_client)
 
-    migrated: list[tuple[str, str, str]] = []
+    migrated: list[tuple[str, str, str, list[int]]] = []
     synced_namespaces: list[str] = []
 
     try:
@@ -467,14 +470,20 @@ def migrated_tables(
                     f"Migration failed for {namespace}.{table_name} "
                     f"(exit {result.exit_code}):\n{result.output}"
                 )
-                migrated.append((namespace, table_name, glue_table))
+
+                # Read snapshot timestamps from migrated metadata
+                if table_name == "sample_table":
+                    snapshot_ts = read_snapshot_timestamps(
+                        aws_s3_client, AWS_BUCKET, table_location
+                    )
+                else:
+                    snapshot_ts = []
+
+                migrated.append((namespace, table_name, glue_table, snapshot_ts))
 
                 # Grant IAM_ALLOWED_PRINCIPALS on this table so Glue ETL
                 # and EMR Serverless execution roles (which only have IAM
-                # policies) can read it.  Lake Formation blocks glue:GetTable
-                # on tables without an explicit LF grant even when the IAM
-                # policy allows it.  The table creator (this process) has
-                # grant authority on tables it just registered.
+                # policies) can read it.
                 lf = boto3.client("lakeformation", region_name=AWS_REGION)
                 try:
                     lf.grant_permissions(
@@ -494,5 +503,20 @@ def migrated_tables(
     finally:
         for namespace in synced_namespaces:
             cleanup_s3_prefix(aws_s3_client, AWS_BUCKET, f"warehouse/{namespace}/")
-        for _, _, glue_table in migrated:
+        for _, _, glue_table, _ in migrated:
             cleanup_glue_table(glue_client, GLUE_DB, glue_table)
+
+
+@pytest.fixture(scope="session")
+def snapshot_timestamps(
+    migrated_tables: list[tuple[str, str, str, list[int]]],
+) -> dict[str, list[int]]:
+    """Map namespace -> snapshot timestamps for sample_table.
+
+    Convenience fixture so tests don't have to search migrated_tables.
+    """
+    return {
+        namespace: ts
+        for namespace, table_name, _, ts in migrated_tables
+        if table_name == "sample_table"
+    }
