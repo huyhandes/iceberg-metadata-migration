@@ -78,7 +78,7 @@ Migration setup (sync + rewrite + Glue registration + Lake Formation per-table g
 
 #### Athena (pyiceberg GlueCatalog)
 
-7 tests: 3 row count + 3 dimension join + 1 cross-catalog join, parametrized across `rest_ns`, `sql_ns`, `hms_ns` namespaces. Queries execute via Athena SQL against the Glue Catalog.
+13 tests: 3 row count + 3 dimension join + 1 cross-catalog join + 3 time-travel snapshot 1 + 3 time-travel snapshot 2, parametrized across `rest_ns`, `sql_ns`, `hms_ns` namespaces. Queries execute via Athena SQL against the Glue Catalog. Time-travel uses `FOR TIMESTAMP AS OF TIMESTAMP '{iso_string}'`.
 
 ```bash
 just test-athena
@@ -87,7 +87,7 @@ just test-athena
 
 #### Glue ETL 5.1
 
-3 tests (1 test function parametrized across 3 namespaces). Submits `verify_glue.py` as a Glue ETL job run. Uses explicit Iceberg `glue_catalog` configuration — `--datalake-formats iceberg` only provides Iceberg JARs; the named catalog is wired via `--conf` entries (SparkCatalog + GlueCatalog impl + S3FileIO). Tables accessed as `glue_catalog.{db}.{table}`. Each test verifies: row count (10), dimension JOIN (5 rows), cross-catalog JOIN (3 rows).
+3 tests (1 test function parametrized across 3 namespaces). Submits `verify_glue.py` as a Glue ETL job run. Uses explicit Iceberg `glue_catalog` configuration — `--datalake-formats iceberg` only provides Iceberg JARs; the named catalog is wired via `--conf` entries (SparkCatalog + GlueCatalog impl + S3FileIO). Tables accessed as `glue_catalog.{db}.{table}`. Each test verifies: row count (10), dimension JOIN (5 rows), cross-catalog JOIN (3 rows), time-travel to snapshot 1 (5 rows, SUM 801.5), time-travel to snapshot 2 (5 rows, SUM 2387.25).
 
 ```bash
 just test-glue
@@ -96,7 +96,7 @@ just test-glue
 
 #### EMR Serverless (EMR 7.12.0)
 
-3 tests (1 test function parametrized across 3 namespaces). Submits `verify_emr.py` as an EMR Serverless Spark job. Uses identical `glue_catalog` Spark configuration to Glue ETL. Includes `--aws_region` argument so `boto3` uses the regional S3 endpoint (global endpoint times out in some regions). Same 3-query verification as Glue ETL.
+3 tests (1 test function parametrized across 3 namespaces). Submits `verify_emr.py` as an EMR Serverless Spark job. Uses identical `glue_catalog` Spark configuration to Glue ETL. Includes `--aws_region` argument so `boto3` uses the regional S3 endpoint (global endpoint times out in some regions). Same verification as Glue ETL: current state queries + time-travel to both snapshots.
 
 ```bash
 just test-emr
@@ -105,7 +105,7 @@ just test-emr
 
 **Cleanup:** Tests clean up S3 objects and Glue tables in `finally` blocks.
 
-**Total integration tests:** 13 (7 Athena + 3 Glue ETL + 3 EMR Serverless)
+**Total integration tests:** 19 (13 Athena + 3 Glue ETL + 3 EMR Serverless)
 
 ## Mocking Approach (Unit Tests)
 
@@ -146,3 +146,4 @@ Tests create Avro data in-memory using fastavro. See `tests/fixtures/v3_manifest
 13. **Glue ETL queryability** — migrated tables are queryable via Glue ETL 5.1 Iceberg catalog
 14. **EMR Serverless queryability** — migrated tables are queryable via EMR Serverless Spark (EMR 7.12.0)
 15. **Cross-engine consistency** — all 3 engines read the same migrated metadata successfully
+16. **Multi-snapshot time-travel** — historical snapshots are queryable after migration (Athena, Glue ETL, EMR Serverless all verify snapshot 1 and snapshot 2)

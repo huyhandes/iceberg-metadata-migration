@@ -112,3 +112,12 @@ In some AWS regions (e.g., ap-southeast-5 Jakarta), the global S3 endpoint times
 
 **Lake Formation per-table grants**
 Glue ETL and EMR Serverless execution roles have IAM policies allowing `glue:GetTable`, but Lake Formation blocks table access unless an explicit LF grant exists on each table. The Terraform `aws_lakeformation_permissions` resource only grants database-level access to `IAM_ALLOWED_PRINCIPALS`. Per-table grants must be applied after each table is registered — the `migrated_tables` fixture in `conftest.py` calls `lf.grant_permissions()` on every migrated table.
+
+**PyIceberg overwrite produces 2 snapshots, not 1**
+`table.overwrite(df, overwrite_filter="id <= 2")` creates 2 snapshots internally (OVERWRITE + APPEND), not 1. A seed sequence of append → overwrite → append produces 4 snapshots total instead of the expected 3. The `read_snapshot_timestamps()` helper addresses this by returning named keys `{"s1": timestamps[0], "s2": timestamps[2]}` that skip the intermediate OVERWRITE snapshot at index 1, abstracting over the exact snapshot count.
+
+**Iceberg time-travel timestamp resolution**
+Iceberg returns the snapshot with `timestamp <= query_timestamp`. To query a specific snapshot, add +1ms to its timestamp. Athena uses `FOR TIMESTAMP AS OF TIMESTAMP '{iso_string}'` syntax; Spark (Glue ETL, EMR Serverless) uses `spark.read.option("as-of-timestamp", epoch_ms).table(name)`.
+
+**Multi-snapshot seeding**
+Integration test seed tables use 3 operations (append 5 rows → overwrite 2 rows → append 5 rows) producing 4 snapshots. This enables time-travel verification: snapshot 1 = 5 rows / SUM(amount) 801.5, snapshot 2 = 5 rows / SUM(amount) 2387.25, current = 10 rows / SUM(amount) 3478.0. All three query engines (Athena, Glue ETL, EMR Serverless) verify snapshots 1 and 2.
