@@ -55,13 +55,20 @@ def glue_job_client() -> "GlueClient":
 @pytest.mark.parametrize("namespace", CATALOG_CONFIGS)
 def test_glue_verifies_migrated_table(
     namespace: str,
-    migrated_tables: list[tuple[str, str, str]],
+    migrated_tables: list[tuple[str, str, str, list[int]]],
+    snapshot_timestamps: dict[str, list[int]],
     glue_job_client: "GlueClient",
     aws_s3_client: "S3Client",
 ) -> None:
-    """Glue ETL job queries migrated Iceberg table and asserts all 3 query outcomes."""
+    """Glue ETL job queries migrated Iceberg table: current state + time-travel."""
     run_id = uuid.uuid4().hex[:8]
     output_path = f"s3://{AWS_BUCKET}/integration-results/glue/{namespace}/{run_id}"
+
+    ts_list = snapshot_timestamps[namespace]
+    assert len(ts_list) >= 2, f"Expected at least 2 snapshot timestamps for {namespace}"
+    # Add 1ms to ensure correct snapshot resolution
+    s1_ts = str(ts_list[0] + 1)
+    s2_ts = str(ts_list[1] + 1)
 
     try:
         run_glue_job(
@@ -73,11 +80,14 @@ def test_glue_verifies_migrated_table(
                 "--namespace": namespace,
                 "--cross_ns1": "rest_ns",
                 "--cross_ns2": "sql_ns",
+                "--s1_timestamp": s1_ts,
+                "--s2_timestamp": s2_ts,
             },
         )
 
         results = read_job_results(aws_s3_client, output_path)
 
+        # Current state assertions (unchanged)
         assert results["row_count"] == 10, (
             f"[{namespace}] Expected 10 rows, got {results['row_count']}"
         )
@@ -95,6 +105,20 @@ def test_glue_verifies_migrated_table(
             assert row["rest_name"] == row["sql_name"], (
                 f"[{namespace}] Names should match: rest={row['rest_name']}, sql={row['sql_name']}"
             )
+
+        # Time-travel assertions
+        assert results["s1_row_count"] == 5, (
+            f"[{namespace}] S1: Expected 5 rows, got {results['s1_row_count']}"
+        )
+        assert abs(results["s1_sum_amount"] - 801.5) < 0.01, (
+            f"[{namespace}] S1: Expected SUM ~801.5, got {results['s1_sum_amount']}"
+        )
+        assert results["s2_row_count"] == 5, (
+            f"[{namespace}] S2: Expected 5 rows, got {results['s2_row_count']}"
+        )
+        assert abs(results["s2_sum_amount"] - 2387.25) < 0.01, (
+            f"[{namespace}] S2: Expected SUM ~2387.25, got {results['s2_sum_amount']}"
+        )
 
     finally:
         cleanup_s3_prefix(
