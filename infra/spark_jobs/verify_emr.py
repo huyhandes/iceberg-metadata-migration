@@ -42,6 +42,8 @@ parser.add_argument("--namespace", required=True)
 parser.add_argument("--cross_ns1", required=True)
 parser.add_argument("--cross_ns2", required=True)
 parser.add_argument("--aws_region", required=True)
+parser.add_argument("--s1_timestamp", required=True)
+parser.add_argument("--s2_timestamp", required=True)
 args = parser.parse_args()
 
 db = args.glue_database
@@ -50,6 +52,8 @@ cross_ns1 = args.cross_ns1
 cross_ns2 = args.cross_ns2
 aws_region = args.aws_region
 output_path = args.output_path.rstrip("/")
+s1_timestamp = args.s1_timestamp
+s2_timestamp = args.s2_timestamp
 
 # ---------------------------------------------------------------------------
 # SparkSession — Iceberg catalog configured via sparkSubmitParameters
@@ -131,6 +135,25 @@ cross_results = [
 ]
 
 # ---------------------------------------------------------------------------
+# Query 4: Time-travel to snapshot 1 — row count and SUM(amount)
+# ---------------------------------------------------------------------------
+
+s1_table_name = f"glue_catalog.`{db}`.`{ns}_sample_table`"
+s1_df = spark.read.option("as-of-timestamp", s1_timestamp).table(s1_table_name)
+s1_row_count = s1_df.count()
+s1_sum_row = s1_df.agg({"amount": "sum"}).collect()
+s1_sum_amount = float(s1_sum_row[0][0]) if s1_sum_row else 0.0
+
+# ---------------------------------------------------------------------------
+# Query 5: Time-travel to snapshot 2 — row count and SUM(amount)
+# ---------------------------------------------------------------------------
+
+s2_df = spark.read.option("as-of-timestamp", s2_timestamp).table(s1_table_name)
+s2_row_count = s2_df.count()
+s2_sum_row = s2_df.agg({"amount": "sum"}).collect()
+s2_sum_amount = float(s2_sum_row[0][0]) if s2_sum_row else 0.0
+
+# ---------------------------------------------------------------------------
 # Write results
 # ---------------------------------------------------------------------------
 
@@ -138,6 +161,10 @@ results = {
     "row_count": row_count,
     "join_rows": join_results,
     "cross_join_rows": cross_results,
+    "s1_row_count": s1_row_count,
+    "s1_sum_amount": s1_sum_amount,
+    "s2_row_count": s2_row_count,
+    "s2_sum_amount": s2_sum_amount,
 }
 put_results(output_path, results)
 
