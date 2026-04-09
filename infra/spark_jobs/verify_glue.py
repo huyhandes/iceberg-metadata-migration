@@ -144,8 +144,8 @@ cross_results = [
 # Query 4: Time-travel to snapshot 1 — row count and SUM(amount)
 # ---------------------------------------------------------------------------
 
-s1_table_name = f"glue_catalog.`{db}`.`{ns}_sample_table`"
-s1_df = spark.read.option("as-of-timestamp", s1_timestamp).table(s1_table_name)
+sample_table_name = f"glue_catalog.`{db}`.`{ns}_sample_table`"
+s1_df = spark.read.option("as-of-timestamp", s1_timestamp).table(sample_table_name)
 s1_row_count = s1_df.count()
 s1_sum_row = s1_df.agg({"amount": "sum"}).collect()
 s1_sum_amount = float(s1_sum_row[0][0]) if s1_sum_row else 0.0
@@ -154,7 +154,7 @@ s1_sum_amount = float(s1_sum_row[0][0]) if s1_sum_row else 0.0
 # Query 5: Time-travel to snapshot 2 — row count and SUM(amount)
 # ---------------------------------------------------------------------------
 
-s2_df = spark.read.option("as-of-timestamp", s2_timestamp).table(s1_table_name)
+s2_df = spark.read.option("as-of-timestamp", s2_timestamp).table(sample_table_name)
 s2_row_count = s2_df.count()
 s2_sum_row = s2_df.agg({"amount": "sum"}).collect()
 s2_sum_amount = float(s2_sum_row[0][0]) if s2_sum_row else 0.0

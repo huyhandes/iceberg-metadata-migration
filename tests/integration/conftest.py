@@ -368,7 +368,7 @@ def read_snapshot_timestamps(
     PyIceberg's overwrite(df, overwrite_filter=...) produces 2 snapshots
     (OVERWRITE + APPEND), so seed_table_with_history() creates 4 snapshots:
       S0: append (5 rows)       — "s1" checkpoint
-      S1: overwrite (3 rows)    — intermediate, skip
+      S1: overwrite-delete       — intermediate (PyIceberg splits overwrite), skip
       S2: append (5 rows)       — "s2" checkpoint (overwrite complete)
       S3: append (10 rows)      — current state
 
