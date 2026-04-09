@@ -359,20 +359,21 @@ def read_snapshot_timestamps(
     s3_client: S3Client,
     bucket: str,
     table_location: str,
-) -> list[int]:
-    """Read migrated metadata.json and return snapshot timestamps in chronological order.
+) -> dict[str, int]:
+    """Read migrated metadata.json and return named snapshot timestamps for time-travel.
 
     Parses the `snapshots` array from the metadata.json file located at
-    {table_location}/_migrated/metadata/ on S3. Returns `timestamp-ms` values
-    sorted ascending (oldest first).
+    {table_location}/_migrated/metadata/ on S3.
 
-    Args:
-        s3_client: boto3 S3 client for AWS.
-        bucket: AWS S3 bucket name.
-        table_location: Full S3 URI of the table (e.g., s3://bucket/warehouse/ns/table).
+    PyIceberg's overwrite(df, overwrite_filter=...) produces 2 snapshots
+    (OVERWRITE + APPEND), so seed_table_with_history() creates 4 snapshots:
+      S0: append (5 rows)       — "s1" checkpoint
+      S1: overwrite (3 rows)    — intermediate, skip
+      S2: append (5 rows)       — "s2" checkpoint (overwrite complete)
+      S3: append (10 rows)      — current state
 
     Returns:
-        List of timestamp-ms values sorted chronologically.
+        Dict with keys "s1" and "s2" mapping to timestamp-ms values.
     """
     # Find the metadata.json key under _migrated/
     prefix_without_scheme = table_location.removeprefix("s3://")
@@ -400,7 +401,8 @@ def read_snapshot_timestamps(
 
     snapshots = metadata.get("snapshots", [])
     timestamps = sorted(snap["timestamp-ms"] for snap in snapshots)
-    return timestamps
+    assert len(timestamps) >= 4, f"Expected at least 4 snapshots, got {len(timestamps)}"
+    return {"s1": timestamps[0], "s2": timestamps[2]}
 
 
 # ---------------------------------------------------------------------------
@@ -413,7 +415,7 @@ def migrated_tables(
     minio_client: S3Client,
     aws_s3_client: S3Client,
     glue_client: GlueClient,
-) -> Generator[list[tuple[str, str, str, list[int]]], None, None]:
+) -> Generator[list[tuple[str, str, str, dict[str, int]]], None, None]:
     """Session fixture: upload spark scripts, sync and migrate all tables, yield, cleanup.
 
     Syncs all 3 namespaces x 2 tables from MinIO to AWS S3, runs the migration CLI
@@ -421,9 +423,9 @@ def migrated_tables(
     migrated metadata.json for time-travel tests. Cleans up at session end.
 
     Yields:
-        List of (namespace, table_name, glue_table, snapshot_timestamps_ms)
-        for every migrated table. snapshot_timestamps_ms is populated for
-        sample_table (3 values) and empty for cities.
+        List of (namespace, table_name, glue_table, snapshot_timestamps)
+        for every migrated table. snapshot_timestamps has keys "s1" and "s2"
+        for sample_table, empty dict for cities.
     """
     from typer.testing import CliRunner
 
@@ -433,7 +435,7 @@ def migrated_tables(
 
     upload_spark_scripts(aws_s3_client)
 
-    migrated: list[tuple[str, str, str, list[int]]] = []
+    migrated: list[tuple[str, str, str, dict[str, int]]] = []
     synced_namespaces: list[str] = []
 
     try:
@@ -477,7 +479,7 @@ def migrated_tables(
                         aws_s3_client, AWS_BUCKET, table_location
                     )
                 else:
-                    snapshot_ts = []
+                    snapshot_ts = {}
 
                 migrated.append((namespace, table_name, glue_table, snapshot_ts))
 
@@ -509,9 +511,9 @@ def migrated_tables(
 
 @pytest.fixture(scope="session")
 def snapshot_timestamps(
-    migrated_tables: list[tuple[str, str, str, list[int]]],
-) -> dict[str, list[int]]:
-    """Map namespace -> snapshot timestamps for sample_table.
+    migrated_tables: list[tuple[str, str, str, dict[str, int]]],
+) -> dict[str, dict[str, int]]:
+    """Map namespace -> {"s1": ts_ms, "s2": ts_ms} for sample_table.
 
     Convenience fixture so tests don't have to search migrated_tables.
     """

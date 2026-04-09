@@ -121,14 +121,13 @@ def test_athena_cross_catalog_join(
 def test_athena_time_travel_snapshot_1(
     namespace: str,
     table_name: str,
-    migrated_tables: list[tuple[str, str, str, list[int]]],
-    snapshot_timestamps: dict[str, list[int]],
+    migrated_tables: list[tuple[str, str, str, dict[str, int]]],
+    snapshot_timestamps: dict[str, dict[str, int]],
     athena_client: "AthenaClient",
 ) -> None:
     """Time-travel to snapshot 1 (initial append): expect 5 rows, SUM(amount) = 801.5."""
-    ts_list = snapshot_timestamps[namespace]
-    assert len(ts_list) >= 1, f"Expected at least 1 snapshot timestamp for {namespace}"
-    s1_ts = _ms_to_athena_timestamp(ts_list[0])
+    ts_map = snapshot_timestamps[namespace]
+    s1_ts = _ms_to_athena_timestamp(ts_map["s1"])
 
     glue_table = f"{namespace}_{table_name}"
 
@@ -156,14 +155,13 @@ def test_athena_time_travel_snapshot_1(
 def test_athena_time_travel_snapshot_2(
     namespace: str,
     table_name: str,
-    migrated_tables: list[tuple[str, str, str, list[int]]],
-    snapshot_timestamps: dict[str, list[int]],
+    migrated_tables: list[tuple[str, str, str, dict[str, int]]],
+    snapshot_timestamps: dict[str, dict[str, int]],
     athena_client: "AthenaClient",
 ) -> None:
     """Time-travel to snapshot 2 (after overwrite): expect 5 rows, SUM(amount) = 2387.25."""
-    ts_list = snapshot_timestamps[namespace]
-    assert len(ts_list) >= 2, f"Expected at least 2 snapshot timestamps for {namespace}"
-    s2_ts = _ms_to_athena_timestamp(ts_list[1])
+    ts_map = snapshot_timestamps[namespace]
+    s2_ts = _ms_to_athena_timestamp(ts_map["s2"])
 
     glue_table = f"{namespace}_{table_name}"
 

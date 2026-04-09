@@ -52,8 +52,8 @@ EMR_SCRIPT_S3_URI = f"s3://{AWS_BUCKET}/spark-jobs/verify_emr.py"
 @pytest.mark.parametrize("namespace", CATALOG_CONFIGS)
 def test_emr_verifies_migrated_table(
     namespace: str,
-    migrated_tables: list[tuple[str, str, str, list[int]]],
-    snapshot_timestamps: dict[str, list[int]],
+    migrated_tables: list[tuple[str, str, str, dict[str, int]]],
+    snapshot_timestamps: dict[str, dict[str, int]],
     emrserverless_client: "EMRServerlessClient",
     aws_s3_client: "S3Client",
 ) -> None:
@@ -61,11 +61,10 @@ def test_emr_verifies_migrated_table(
     run_id = uuid.uuid4().hex[:8]
     output_path = f"s3://{AWS_BUCKET}/integration-results/emr/{namespace}/{run_id}"
 
-    ts_list = snapshot_timestamps[namespace]
-    assert len(ts_list) >= 2, f"Expected at least 2 snapshot timestamps for {namespace}"
+    ts_map = snapshot_timestamps[namespace]
     # Add 1ms to ensure correct snapshot resolution
-    s1_ts = str(ts_list[0] + 1)
-    s2_ts = str(ts_list[1] + 1)
+    s1_ts = str(ts_map["s1"] + 1)
+    s2_ts = str(ts_map["s2"] + 1)
 
     try:
         run_emr_job(
