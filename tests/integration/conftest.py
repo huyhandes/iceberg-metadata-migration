@@ -355,6 +355,54 @@ def cleanup_glue_table(client: GlueClient, database: str, table: str) -> None:
         pass
 
 
+def read_snapshot_timestamps(
+    s3_client: S3Client,
+    bucket: str,
+    table_location: str,
+) -> list[int]:
+    """Read migrated metadata.json and return snapshot timestamps in chronological order.
+
+    Parses the `snapshots` array from the metadata.json file located at
+    {table_location}/_migrated/metadata/ on S3. Returns `timestamp-ms` values
+    sorted ascending (oldest first).
+
+    Args:
+        s3_client: boto3 S3 client for AWS.
+        bucket: AWS S3 bucket name.
+        table_location: Full S3 URI of the table (e.g., s3://bucket/warehouse/ns/table).
+
+    Returns:
+        List of timestamp-ms values sorted chronologically.
+    """
+    # Find the metadata.json key under _migrated/
+    prefix_without_scheme = table_location.removeprefix("s3://")
+    _, _, key_prefix = prefix_without_scheme.partition("/")
+    migrated_prefix = key_prefix.rstrip("/") + "/_migrated/metadata/"
+
+    # List objects to find the metadata.json file
+    paginator = s3_client.get_paginator("list_objects_v2")
+    metadata_key = None
+    for page in paginator.paginate(Bucket=bucket, Prefix=migrated_prefix):
+        for obj in page.get("Contents", []):
+            if obj["Key"].endswith(".metadata.json"):
+                metadata_key = obj["Key"]
+                break
+        if metadata_key:
+            break
+
+    if metadata_key is None:
+        raise FileNotFoundError(
+            f"No metadata.json found under s3://{bucket}/{migrated_prefix}"
+        )
+
+    body = s3_client.get_object(Bucket=bucket, Key=metadata_key)["Body"].read()
+    metadata = json.loads(body)
+
+    snapshots = metadata.get("snapshots", [])
+    timestamps = sorted(snap["timestamp-ms"] for snap in snapshots)
+    return timestamps
+
+
 # ---------------------------------------------------------------------------
 # Session migration fixture
 # ---------------------------------------------------------------------------
