@@ -45,8 +45,20 @@ Provisions:
 - IAM role for the Glue ETL job
 - EMR Serverless application (`iceberg-migration-test`, EMR 7.12.0)
 - IAM role for EMR Serverless jobs
+- Test Lambda (ECR repo, function-from-image, IAM role, log group) — `infra/terraform/lambda.tf`
 
 After `tf-apply`, copy the outputs (`emr_application_id`, `emr_job_role_arn`, `glue_job_name`) into `.env`.
+
+## AWS Lambda Entry Point
+
+The Lambda is the second Entry point alongside the CLI, invoked synchronously by
+Airflow over a PrivateLink endpoint. For the event/response contract, IAM
+permissions, VPC/endpoint prerequisites, image build/push, and an example payload
+for the client's platform team, see [LAMBDA.md](LAMBDA.md). Build the image:
+
+```bash
+just lambda-build   # docker build --platform linux/amd64 -t iceberg-migrate-lambda:latest .
+```
 
 ### Verifying the Integration
 
@@ -58,6 +70,30 @@ just test-athena        # Athena only
 just test-glue          # Glue ETL only
 just test-emr           # EMR Serverless only
 ```
+
+### Lambda Release Gate (no-egress sandbox)
+
+To run the complete release gate — provision a throwaway no-egress sandbox VPC,
+run the differential-equivalence test (Lambda artifacts == CLI artifacts), then
+tear down the sandbox:
+
+```bash
+just test-lambda-release   # provision → test → destroy (teardown guaranteed on failure)
+```
+
+For iterative debugging (apply once, run the test repeatedly):
+
+```bash
+just tf-sandbox-apply                            # provision sandbox once
+just lambda-push-sandbox                         # push image to sandbox ECR
+SANDBOX_LAMBDA_FUNCTION_NAME=iceberg-migration-sandbox \
+  uv run pytest tests/integration/test_lambda_invoke.py -m integration -v  # repeat as needed
+just tf-sandbox-destroy                          # destroy when done
+```
+
+The sandbox stack lives in `infra/terraform/sandbox/` with separate Terraform
+state; destroying it never affects the main stack resources (S3 bucket, Glue
+database, Athena workgroup).
 
 ## Running the Tool
 
