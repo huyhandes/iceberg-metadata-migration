@@ -71,6 +71,30 @@ just test-glue          # Glue ETL only
 just test-emr           # EMR Serverless only
 ```
 
+### Lambda Release Gate (no-egress sandbox)
+
+To run the complete release gate — provision a throwaway no-egress sandbox VPC,
+run the differential-equivalence test (Lambda artifacts == CLI artifacts), then
+tear down the sandbox:
+
+```bash
+just test-lambda-release   # provision → test → destroy (teardown guaranteed on failure)
+```
+
+For iterative debugging (apply once, run the test repeatedly):
+
+```bash
+just tf-sandbox-apply                            # provision sandbox once
+just lambda-push-sandbox                         # push image to sandbox ECR
+SANDBOX_LAMBDA_FUNCTION_NAME=iceberg-migration-sandbox \
+  uv run pytest tests/integration/test_lambda_invoke.py -m integration -v  # repeat as needed
+just tf-sandbox-destroy                          # destroy when done
+```
+
+The sandbox stack lives in `infra/terraform/sandbox/` with separate Terraform
+state; destroying it never affects the main stack resources (S3 bucket, Glue
+database, Athena workgroup).
+
 ## Running the Tool
 
 ### From source (development):

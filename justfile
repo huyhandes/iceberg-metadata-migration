@@ -77,6 +77,28 @@ test-athena:
 test-lambda-integration:
     uv run pytest tests/integration/test_lambda_invoke.py -m integration -v
 
+# Lambda release gate: provision sandbox, run differential-equivalence test, destroy
+# Teardown runs even on test failure via shell trap.
+test-lambda-release:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    trap 'just tf-sandbox-destroy' EXIT
+    just tf-sandbox-apply
+    export SANDBOX_LAMBDA_FUNCTION_NAME=$(cd infra/terraform/sandbox && terraform output -raw sandbox_lambda_function_name)
+    just lambda-build
+    just lambda-push-sandbox
+    uv run pytest tests/integration/test_lambda_invoke.py -m integration -v
+
+# Apply sandbox once and run the gate test (no teardown — iterate manually, destroy with tf-sandbox-destroy)
+test-lambda-release-dev:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    just tf-sandbox-apply
+    export SANDBOX_LAMBDA_FUNCTION_NAME=$(cd infra/terraform/sandbox && terraform output -raw sandbox_lambda_function_name)
+    just lambda-build
+    just lambda-push-sandbox
+    uv run pytest tests/integration/test_lambda_invoke.py -m integration -v
+
 # Run everything
 test-all:
     uv run pytest -m "rest or sql or hms or integration" -v
@@ -118,6 +140,25 @@ tf-destroy:
         -var="aws_region={{env('AWS_REGION')}}" \
         -var="s3_bucket={{env('AWS_TEST_BUCKET')}}"
 
+# Init the sandbox Terraform workspace (separate state from main)
+tf-sandbox-init:
+    cd infra/terraform/sandbox && terraform init \
+        -backend-config="bucket={{env('TF_STATE_BUCKET')}}" \
+        -backend-config="key=terraform/iceberg-migration-sandbox.tfstate" \
+        -backend-config="region={{env('AWS_REGION')}}"
+
+# Apply the no-egress sandbox VPC + ECR + Lambda
+tf-sandbox-apply:
+    cd infra/terraform/sandbox && terraform apply -auto-approve \
+        -var="aws_region={{env('AWS_REGION')}}" \
+        -var="s3_bucket={{env('AWS_TEST_BUCKET')}}"
+
+# Destroy the sandbox stack (safe: never touches main stack resources)
+tf-sandbox-destroy:
+    cd infra/terraform/sandbox && terraform destroy -auto-approve \
+        -var="aws_region={{env('AWS_REGION')}}" \
+        -var="s3_bucket={{env('AWS_TEST_BUCKET')}}"
+
 # ---------------------------------------------------------------------------
 # Lambda
 # ---------------------------------------------------------------------------
@@ -131,6 +172,12 @@ lambda-push:
     aws ecr get-login-password --region {{env('AWS_REGION')}} | docker login --username AWS --password-stdin {{env('AWS_ACCOUNT_ID')}}.dkr.ecr.{{env('AWS_REGION')}}.amazonaws.com
     docker tag iceberg-migrate-lambda:latest {{env('AWS_ACCOUNT_ID')}}.dkr.ecr.{{env('AWS_REGION')}}.amazonaws.com/iceberg-migration-lambda:latest
     docker push {{env('AWS_ACCOUNT_ID')}}.dkr.ecr.{{env('AWS_REGION')}}.amazonaws.com/iceberg-migration-lambda:latest
+
+# Push the Lambda image to the sandbox ECR repo
+lambda-push-sandbox:
+    aws ecr get-login-password --region {{env('AWS_REGION')}} | docker login --username AWS --password-stdin {{env('AWS_ACCOUNT_ID')}}.dkr.ecr.{{env('AWS_REGION')}}.amazonaws.com
+    docker tag iceberg-migrate-lambda:latest {{env('AWS_ACCOUNT_ID')}}.dkr.ecr.{{env('AWS_REGION')}}.amazonaws.com/iceberg-migration-sandbox:latest
+    docker push {{env('AWS_ACCOUNT_ID')}}.dkr.ecr.{{env('AWS_REGION')}}.amazonaws.com/iceberg-migration-sandbox:latest
 
 # ---------------------------------------------------------------------------
 # Code quality

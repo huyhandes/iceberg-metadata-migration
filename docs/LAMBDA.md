@@ -96,6 +96,20 @@ VPC** and are **not** created by this repo:
 The function code and image are identical regardless of VPC attachment. These
 endpoints are client-owned; this repo's Terraform provisions only a test Lambda.
 
+## No-Egress Assertion (Structural Only)
+
+The release gate (`just test-lambda-release`) runs the function inside a
+throwaway sandbox VPC provisioned by `infra/terraform/sandbox/`. The VPC has
+**no Internet Gateway and no NAT Gateway** — no-egress is asserted structurally
+by the absence of these resources in the Terraform config, not by a positive
+network probe.
+
+**Residual risk:** a future Terraform change that added an IGW or NAT to the
+sandbox stack would restore internet egress, but the gate would still pass
+because nothing in the test positively probes the network path. This is an
+accepted trade-off. The mitigation is code review of `infra/terraform/sandbox/`
+changes.
+
 ## Environment Variables
 
 - `AWS_DEFAULT_REGION` — the region fallback when `aws_region` is omitted from the
