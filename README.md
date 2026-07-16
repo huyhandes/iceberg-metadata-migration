@@ -29,6 +29,8 @@ iceberg-migrate migrate \
 
 That's it. The tool reads the Iceberg metadata tree, rewrites every path-bearing field, writes migrated copies to `_migrated/`, and registers the table in AWS Glue Catalog — all without touching the original files.
 
+Two entry points share one migration core: the **CLI** above, and an **AWS Lambda** for Airflow/orchestrator integration (see [docs/LAMBDA.md](docs/LAMBDA.md)).
+
 ---
 
 ## Why Not Just Use Spark?
@@ -150,6 +152,20 @@ iceberg-migrate migrate ... --json 2>/dev/null | jq .status
 --aws-region       AWS region for Glue (default: env)
 ```
 
+### Lambda (Airflow / orchestrator)
+
+Invoke synchronously with a JSON payload whose keys mirror the CLI flags in `snake_case`:
+
+```json
+{
+  "table_location": "s3://my-bucket/warehouse/db/events",
+  "source_prefix":  "s3a://on-prem-minio/warehouse",
+  "dest_prefix":    "s3://my-bucket/warehouse"
+}
+```
+
+Returns `{"status": "success", ...}` on success; raises (Lambda `FunctionError`) on any failure so the orchestrator can retry. See [docs/LAMBDA.md](docs/LAMBDA.md) for the full contract, IAM requirements, and VPC/endpoint prerequisites.
+
 ---
 
 ## What Happens Under the Hood
@@ -195,6 +211,8 @@ S3 (original metadata)
 ```
 src/iceberg_migrate/
 ├── cli.py                   # Typer CLI entry point
+├── core.py                  # Shared migration orchestration (CLI + Lambda)
+├── lambda_handler.py        # Lambda entry point (thin adapter over core.py)
 ├── discovery/               # Locate, decompress, parse metadata from S3
 ├── rewrite/                 # Rewrite paths in JSON + Avro
 ├── validation/              # Pre-write structural + residual-prefix checks
@@ -205,7 +223,8 @@ src/iceberg_migrate/
 infra/
 ├── docker-compose.yml       # Local Lakekeeper, MinIO, HMS, seed containers
 ├── spark_jobs/              # PySpark verification scripts (Glue ETL + EMR)
-└── terraform/               # AWS infra (S3, Glue DB, Athena, EMR app, IAM)
+├── terraform/               # AWS infra (S3, Glue DB, Athena, EMR app, Lambda)
+└── terraform/sandbox/       # Throwaway no-egress VPC for the Lambda release gate
 ```
 
 ---
