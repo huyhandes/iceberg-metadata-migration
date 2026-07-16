@@ -137,22 +137,24 @@ def run_migration(params: MigrationParams) -> MigrationSummary:
         raise FatalMigrationError(str(exc)) from exc
 
     # --- Phase 2: Write + Register (partial failure if writes completed > 0) ---
-    writes_completed = 0
     metadata_s3_key = result.graph.metadata_s3_key
     metadata_s3_uri = f"s3://{bucket}/{metadata_s3_key}"
     glue_action: str | None = None
-    write_counts = {"manifests": 0, "manifest_lists": 0, "metadata": 0}
+    verbose = verbose_lines if params.verbose else None
 
-    if not params.dry_run:
+    if params.dry_run:
+        # Dry-run: counts represent what would be written.
+        write_counts = {
+            "manifests": len(result.manifest_bytes),
+            "manifest_lists": len(result.manifest_list_bytes),
+            "metadata": 1,
+        }
+    else:
+        write_counts = {"manifests": 0, "manifest_lists": 0, "metadata": 0}
         try:
             from iceberg_migrate.writer.s3_writer import write_all
 
             write_result = write_all(s3_client, bucket, result)
-            writes_completed = (
-                write_result.manifests_written
-                + write_result.manifest_lists_written
-                + write_result.metadata_written
-            )
             write_counts = {
                 "manifests": write_result.manifests_written,
                 "manifest_lists": write_result.manifest_lists_written,
@@ -170,7 +172,9 @@ def run_migration(params: MigrationParams) -> MigrationSummary:
                 metadata=result.graph.metadata,
             )
         except Exception as exc:
-            # Partial vs. fatal by writes_completed (D-16, Pitfall 4)
+            # Partial vs. fatal by writes completed (D-16, Pitfall 4).
+            writes_completed = sum(write_counts.values())
+            status = "partial_failure" if writes_completed > 0 else "fatal_error"
             summary = MigrationSummary(
                 source_prefix=source_prefix,
                 dest_prefix=dest_prefix,
@@ -185,52 +189,28 @@ def run_migration(params: MigrationParams) -> MigrationSummary:
                 metadata_s3_key=metadata_s3_key,
                 duration_seconds=time.monotonic() - start,
                 dry_run=False,
-                status="partial_failure" if writes_completed > 0 else "fatal_error",
-                verbose_lines=verbose_lines if params.verbose else None,
+                status=status,
+                verbose_lines=verbose,
             )
             if writes_completed > 0:
                 raise PartialMigrationError(str(exc), summary) from exc
             raise FatalMigrationError(str(exc)) from exc
 
-    # --- Phase 3: Build summary ---
-    duration = time.monotonic() - start
-
-    if params.dry_run:
-        # In dry-run, counts represent what would be written
-        summary = MigrationSummary(
-            source_prefix=source_prefix,
-            dest_prefix=dest_prefix,
-            table_location=table_location,
-            manifests_written=len(result.manifest_bytes),
-            manifest_lists_written=len(result.manifest_list_bytes),
-            metadata_written=1,
-            paths_rewritten=paths_count,
-            glue_database=glue_db,
-            glue_table=glue_tbl,
-            glue_action=None,
-            metadata_s3_key=metadata_s3_key,
-            duration_seconds=duration,
-            dry_run=True,
-            status="success",
-            verbose_lines=verbose_lines if params.verbose else None,
-        )
-    else:
-        summary = MigrationSummary(
-            source_prefix=source_prefix,
-            dest_prefix=dest_prefix,
-            table_location=table_location,
-            manifests_written=write_counts["manifests"],
-            manifest_lists_written=write_counts["manifest_lists"],
-            metadata_written=write_counts["metadata"],
-            paths_rewritten=paths_count,
-            glue_database=glue_db,
-            glue_table=glue_tbl,
-            glue_action=glue_action,
-            metadata_s3_key=metadata_s3_key,
-            duration_seconds=duration,
-            dry_run=False,
-            status="success",
-            verbose_lines=verbose_lines if params.verbose else None,
-        )
-
-    return summary
+    # --- Phase 3: Build success summary ---
+    return MigrationSummary(
+        source_prefix=source_prefix,
+        dest_prefix=dest_prefix,
+        table_location=table_location,
+        manifests_written=write_counts["manifests"],
+        manifest_lists_written=write_counts["manifest_lists"],
+        metadata_written=write_counts["metadata"],
+        paths_rewritten=paths_count,
+        glue_database=glue_db,
+        glue_table=glue_tbl,
+        glue_action=glue_action,
+        metadata_s3_key=metadata_s3_key,
+        duration_seconds=time.monotonic() - start,
+        dry_run=params.dry_run,
+        status="success",
+        verbose_lines=verbose,
+    )

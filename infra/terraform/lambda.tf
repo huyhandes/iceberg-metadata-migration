@@ -80,6 +80,15 @@ resource "aws_iam_role_policy" "lambda" {
   })
 }
 
+# AWSLambdaVPCAccessExecutionRole is required to create ENIs when the function
+# is attached to a VPC (ADR-0004). Attached only when lambda_subnet_ids is set;
+# the no-VPC test path needs neither the policy nor the ENIs.
+resource "aws_iam_role_policy_attachment" "lambda_vpc" {
+  count      = length(var.lambda_subnet_ids) > 0 ? 1 : 0
+  role       = aws_iam_role.lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
 # CloudWatch log group (created here so retention is controlled explicitly)
 resource "aws_cloudwatch_log_group" "lambda" {
   name              = "/aws/lambda/iceberg-migration-lambda"

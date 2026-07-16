@@ -18,7 +18,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from iceberg_migrate.core import MigrationParams, MigrationSummary, run_migration
+from iceberg_migrate.core import MigrationParams, run_migration
+from iceberg_migrate.output.formatter import summary_to_dict
 
 logger = logging.getLogger(__name__)
 
@@ -75,28 +76,4 @@ def handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         summary.status,
         summary.dry_run,
     )
-    return _to_dict(summary)
-
-
-def _to_dict(summary: MigrationSummary) -> dict[str, Any]:
-    """Map a MigrationSummary to the render_json dict shape (issue #1 US-5)."""
-    return {
-        "status": summary.status,
-        "dry_run": summary.dry_run,
-        "source_prefix": summary.source_prefix,
-        "dest_prefix": summary.dest_prefix,
-        "table_location": summary.table_location,
-        "metadata_s3_key": summary.metadata_s3_key,
-        "counts": {
-            "manifests_written": summary.manifests_written,
-            "manifest_lists_written": summary.manifest_lists_written,
-            "metadata_written": summary.metadata_written,
-            "paths_rewritten": summary.paths_rewritten,
-        },
-        "glue": {
-            "database": summary.glue_database,
-            "table": summary.glue_table,
-            "action": summary.glue_action,
-        },
-        "duration_seconds": summary.duration_seconds,
-    }
+    return summary_to_dict(summary)

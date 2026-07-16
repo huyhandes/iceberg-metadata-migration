@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
-from typing import IO, TYPE_CHECKING
+from typing import IO, Any, TYPE_CHECKING
 
 import orjson
 from rich.console import Console
@@ -130,22 +130,14 @@ def render_human(
     console.print(panel)
 
 
-def render_json(summary: MigrationSummary) -> str:
-    """Return a JSON string representation of the migration summary.
+def summary_to_dict(summary: MigrationSummary) -> dict[str, Any]:
+    """Map a MigrationSummary to its canonical dict shape.
 
-    Output is intended for stdout only — human summary should be directed
-    to stderr when JSON mode is active (per D-13: human summary to stderr,
-    JSON to stdout for piping).
-
-    Uses orjson.dumps for consistency with project patterns.
-
-    Args:
-        summary: MigrationSummary with all counts and metadata.
-
-    Returns:
-        JSON-encoded string of the migration summary.
+    Single source of the JSON contract shared by ``render_json`` (the CLI
+    ``--json`` path) and the Lambda handler's return value, so the two entry
+    points cannot drift (issue #1 US-5, ADR-0001).
     """
-    data = {
+    return {
         "status": summary.status,
         "dry_run": summary.dry_run,
         "source_prefix": summary.source_prefix,
@@ -165,7 +157,26 @@ def render_json(summary: MigrationSummary) -> str:
         },
         "duration_seconds": summary.duration_seconds,
     }
-    return orjson.dumps(data, option=orjson.OPT_INDENT_2).decode("utf-8")
+
+
+def render_json(summary: MigrationSummary) -> str:
+    """Return a JSON string representation of the migration summary.
+
+    Output is intended for stdout only — human summary should be directed
+    to stderr when JSON mode is active (per D-13: human summary to stderr,
+    JSON to stdout for piping).
+
+    Uses orjson.dumps for consistency with project patterns.
+
+    Args:
+        summary: MigrationSummary with all counts and metadata.
+
+    Returns:
+        JSON-encoded string of the migration summary.
+    """
+    return orjson.dumps(summary_to_dict(summary), option=orjson.OPT_INDENT_2).decode(
+        "utf-8"
+    )
 
 
 def count_rewritten_paths(
