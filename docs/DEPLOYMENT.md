@@ -45,8 +45,20 @@ Provisions:
 - IAM role for the Glue ETL job
 - EMR Serverless application (`iceberg-migration-test`, EMR 7.12.0)
 - IAM role for EMR Serverless jobs
+- Test Lambda (ECR repo, function-from-image, IAM role, log group) — `infra/terraform/lambda.tf`
 
 After `tf-apply`, copy the outputs (`emr_application_id`, `emr_job_role_arn`, `glue_job_name`) into `.env`.
+
+## AWS Lambda Entry Point
+
+The Lambda is the second Entry point alongside the CLI, invoked synchronously by
+Airflow over a PrivateLink endpoint. For the event/response contract, IAM
+permissions, VPC/endpoint prerequisites, image build/push, and an example payload
+for the client's platform team, see [LAMBDA.md](LAMBDA.md). Build the image:
+
+```bash
+just lambda-build   # docker build --platform linux/amd64 -t iceberg-migrate-lambda:latest .
+```
 
 ### Verifying the Integration
 
