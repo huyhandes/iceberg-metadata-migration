@@ -37,6 +37,10 @@ seed-all:
 test:
     uv run pytest tests/ -x --ignore=tests/integration
 
+# Run Lambda handler unit tests (fast, no Docker)
+test-lambda:
+    uv run pytest tests/test_lambda/ -v
+
 # Run REST catalog local tests
 test-rest:
     uv run pytest -m rest -v
@@ -68,6 +72,10 @@ test-emr:
 # Run only Athena integration tests
 test-athena:
     uv run pytest tests/integration/test_athena_verify.py -m integration -v
+
+# Run only Lambda integration tests (requires deployed test Lambda + AWS creds)
+test-lambda-integration:
+    uv run pytest tests/integration/test_lambda_invoke.py -m integration -v
 
 # Run everything
 test-all:
@@ -109,6 +117,20 @@ tf-destroy:
     cd infra/terraform && terraform destroy \
         -var="aws_region={{env('AWS_REGION')}}" \
         -var="s3_bucket={{env('AWS_TEST_BUCKET')}}"
+
+# ---------------------------------------------------------------------------
+# Lambda
+# ---------------------------------------------------------------------------
+
+# Build the Lambda container image (x86_64; pass --platform on Apple Silicon)
+lambda-build:
+    docker build --platform linux/amd64 -t iceberg-migrate-lambda:latest .
+
+# Push the Lambda image to ECR (requires AWS_ACCOUNT_ID + AWS_REGION in .env, and just lambda-build + just tf-apply first)
+lambda-push:
+    aws ecr get-login-password --region {{env('AWS_REGION')}} | docker login --username AWS --password-stdin {{env('AWS_ACCOUNT_ID')}}.dkr.ecr.{{env('AWS_REGION')}}.amazonaws.com
+    docker tag iceberg-migrate-lambda:latest {{env('AWS_ACCOUNT_ID')}}.dkr.ecr.{{env('AWS_REGION')}}.amazonaws.com/iceberg-migration-lambda:latest
+    docker push {{env('AWS_ACCOUNT_ID')}}.dkr.ecr.{{env('AWS_REGION')}}.amazonaws.com/iceberg-migration-lambda:latest
 
 # ---------------------------------------------------------------------------
 # Code quality
