@@ -49,6 +49,9 @@ class MigrationSummary:
     duration_seconds: float = 0.0
     dry_run: bool = False
     status: str = "success"  # "success", "partial_failure", "fatal_error"
+    # ponytail: carrier for --verbose per-file lines, populated by run_migration;
+    # kept here so the success return stays a single value (ADR-0001 contract).
+    verbose_lines: list[str] | None = None
 
 
 def render_human(

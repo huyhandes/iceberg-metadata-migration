@@ -1,12 +1,9 @@
 """CLI entry point for iceberg-migrate.
 
-Orchestrates the full migration pipeline:
-  1. Discovery: load_metadata_graph -> IcebergMetadataGraph
-  2. Rewrite: RewriteEngine.rewrite() -> RewriteResult (in-memory path rewriting)
-  3. Validation: validate_rewrite() -> ValidationResult (pre-write safety check)
-  4. Write: write_all() -> WriteResult (S3 bottom-up write, gated by --dry-run)
-  5. Register: register_or_update() -> str (Glue catalog, gated by --dry-run)
-  6. Output: render_human or render_json based on --json flag
+Thin adapter (ADR-0001): builds ``MigrationParams`` from Typer options, calls
+``run_migration()``, and maps the returned summary / raised exceptions to exit
+codes (0 success / 1 partial / 2 fatal) plus ``rich`` output. All orchestration
+lives in ``iceberg_migrate.core``.
 
 Exit codes per D-16:
   0 = success (all S3 writes + Glue registration succeeded)
@@ -16,51 +13,18 @@ Exit codes per D-16:
 
 from __future__ import annotations
 
-import os
 import sys
-import time
-from typing import TYPE_CHECKING
 
-import boto3
 import typer
 
-if TYPE_CHECKING:
-    from mypy_boto3_glue import GlueClient
-    from mypy_boto3_s3 import S3Client
-
-from iceberg_migrate.catalog.glue_registrar import derive_glue_names, register_or_update
-from iceberg_migrate.discovery.reader import load_metadata_graph
-from iceberg_migrate.output.formatter import (
+from iceberg_migrate.core import (
+    FatalMigrationError,
+    MigrationParams,
     MigrationSummary,
-    count_rewritten_paths,
-    render_human,
-    render_json,
+    PartialMigrationError,
+    run_migration,
 )
-from iceberg_migrate.rewrite.config import RewriteConfig
-from iceberg_migrate.rewrite.engine import RewriteEngine
-from iceberg_migrate.s3 import parse_s3_uri
-from iceberg_migrate.validation.validator import validate_rewrite
-
-
-class FatalMigrationError(Exception):
-    """Raised when the migration fails before any S3 writes (exit code 2)."""
-
-    pass
-
-
-class PartialMigrationError(Exception):
-    """Raised when the migration fails after some S3 writes have completed (exit code 1).
-
-    Attributes:
-        summary: MigrationSummary populated with completed write counts.
-    """
-
-    summary: MigrationSummary
-
-    def __init__(self, message: str, summary: MigrationSummary):
-        super().__init__(message)
-        self.summary = summary
-
+from iceberg_migrate.output.formatter import render_human, render_json
 
 app = typer.Typer(
     name="iceberg-migrate",
@@ -116,154 +80,34 @@ def migrate(
     rclone, aws s3 sync/cp, or any transfer tool). Creates non-destructive migrated
     metadata under a _migrated/ subdirectory — originals are never modified.
     """
-    start = time.monotonic()
+    params = MigrationParams(
+        table_location=table_location,
+        source_prefix=source_prefix,
+        dest_prefix=dest_prefix,
+        glue_database=glue_database,
+        glue_table=glue_table,
+        dry_run=dry_run,
+        verbose=verbose,
+        aws_region=aws_region,
+    )
 
-    # --- Setup ---
-    bucket, table_key = parse_s3_uri(table_location)
-    config = RewriteConfig(src_prefix=source_prefix, dst_prefix=dest_prefix)
-
-    # Derive Glue names from table_location if not provided (D-07)
-    glue_db, glue_tbl = derive_glue_names(table_location)
-    if glue_database:
-        glue_db = glue_database
-    if glue_table:
-        glue_tbl = glue_table
-
-    # Resolve AWS region (D-07, Pitfall 1)
-    region = aws_region or os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
-
-    s3_client: S3Client = boto3.client("s3")
-
-    # --- Phase 1: Discovery + Rewrite + Validation (fatal if any step fails, exit 2) ---
     try:
-        graph = load_metadata_graph(s3_client, bucket, table_key)
-        engine = RewriteEngine(config)
-        result = engine.rewrite(graph, s3_client, bucket, table_key)
-        # Use the rewritten graph for count comparison — the engine's load_full_graph
-        # expanded the partial Phase 1 graph to include all snapshots' manifests.
-        # Count check verifies serialization preserved all files, not that we
-        # didn't add files (which load_full_graph intentionally does).
-        validation = validate_rewrite(result.graph, result, source_prefix)
-        if not validation.passed:
-            raise FatalMigrationError(
-                f"Validation failed before write: {'; '.join(validation.errors)}"
-            )
-        paths_count, verbose_lines = count_rewritten_paths(result, config)
+        summary = run_migration(params)
+    except PartialMigrationError as exc:
+        _emit_output(exc.summary, exc.summary.verbose_lines, json_output)
+        _echo_error(f"Error: {exc}", json_output)
+        raise typer.Exit(code=1) from exc
     except FatalMigrationError as exc:
-        if json_output:
-            typer.echo(f"Fatal error: {exc}", err=True)
-        else:
-            typer.echo(f"Fatal error: {exc}", err=False)
-        raise typer.Exit(code=2)
-    except Exception as exc:
-        if json_output:
-            typer.echo(f"Fatal error: {exc}", err=True)
-        else:
-            typer.echo(f"Fatal error: {exc}", err=False)
-        raise typer.Exit(code=2)
+        _echo_error(f"Fatal error: {exc}", json_output)
+        raise typer.Exit(code=2) from exc
 
-    # --- Phase 2: Write + Register (partial failure = exit 1, fatal before writes = exit 2) ---
-    writes_completed = 0
-    metadata_s3_key = result.graph.metadata_s3_key
-    metadata_s3_uri = f"s3://{bucket}/{metadata_s3_key}"
-    glue_action: str | None = None
-    write_counts = {"manifests": 0, "manifest_lists": 0, "metadata": 0}
-
-    if not dry_run:
-        try:
-            from iceberg_migrate.writer.s3_writer import write_all
-
-            write_result = write_all(s3_client, bucket, result)
-            writes_completed = (
-                write_result.manifests_written
-                + write_result.manifest_lists_written
-                + write_result.metadata_written
-            )
-            write_counts = {
-                "manifests": write_result.manifests_written,
-                "manifest_lists": write_result.manifest_lists_written,
-                "metadata": write_result.metadata_written,
-            }
-
-            # Register in Glue Catalog
-            glue_client: GlueClient = boto3.client("glue", region_name=region)
-            glue_action = register_or_update(
-                None,
-                glue_client,
-                glue_db,
-                glue_tbl,
-                metadata_s3_uri,
-                metadata=result.graph.metadata,
-            )
-        except Exception as exc:
-            # Determine partial vs. fatal based on how many writes completed (D-16, Pitfall 4)
-            summary = MigrationSummary(
-                source_prefix=source_prefix,
-                dest_prefix=dest_prefix,
-                table_location=table_location,
-                manifests_written=write_counts["manifests"],
-                manifest_lists_written=write_counts["manifest_lists"],
-                metadata_written=write_counts["metadata"],
-                paths_rewritten=paths_count,
-                glue_database=glue_db,
-                glue_table=glue_tbl,
-                glue_action=glue_action,
-                metadata_s3_key=metadata_s3_key,
-                duration_seconds=time.monotonic() - start,
-                dry_run=False,
-                status="partial_failure" if writes_completed > 0 else "fatal_error",
-            )
-            _emit_output(summary, verbose_lines if verbose else None, json_output)
-            if json_output:
-                typer.echo(f"Error: {exc}", err=True)
-            else:
-                typer.echo(f"Error: {exc}")
-            if writes_completed > 0:
-                raise typer.Exit(code=1)
-            else:
-                raise typer.Exit(code=2)
-
-    # --- Phase 3: Build summary and emit output ---
-    duration = time.monotonic() - start
-
-    if dry_run:
-        # In dry-run, counts represent what would be written
-        summary = MigrationSummary(
-            source_prefix=source_prefix,
-            dest_prefix=dest_prefix,
-            table_location=table_location,
-            manifests_written=len(result.manifest_bytes),
-            manifest_lists_written=len(result.manifest_list_bytes),
-            metadata_written=1,
-            paths_rewritten=paths_count,
-            glue_database=glue_db,
-            glue_table=glue_tbl,
-            glue_action=None,
-            metadata_s3_key=metadata_s3_key,
-            duration_seconds=duration,
-            dry_run=True,
-            status="success",
-        )
-    else:
-        summary = MigrationSummary(
-            source_prefix=source_prefix,
-            dest_prefix=dest_prefix,
-            table_location=table_location,
-            manifests_written=write_counts["manifests"],
-            manifest_lists_written=write_counts["manifest_lists"],
-            metadata_written=write_counts["metadata"],
-            paths_rewritten=paths_count,
-            glue_database=glue_db,
-            glue_table=glue_tbl,
-            glue_action=glue_action,
-            metadata_s3_key=metadata_s3_key,
-            duration_seconds=duration,
-            dry_run=False,
-            status="success",
-        )
-
-    _emit_output(summary, verbose_lines if verbose else None, json_output)
+    _emit_output(summary, summary.verbose_lines, json_output)
     raise typer.Exit(code=0)
+
+
+def _echo_error(message: str, json_output: bool) -> None:
+    """Echo an error to stderr in JSON mode, stdout otherwise (matches pre-refactor)."""
+    typer.echo(message, err=json_output)
 
 
 def _emit_output(
