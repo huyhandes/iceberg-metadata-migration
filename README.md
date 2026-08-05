@@ -1,5 +1,9 @@
 # iceberg-migrate
 
+> [!IMPORTANT]
+> **This repository has moved to [sparklabx/iceberg-metadata-migration](https://github.com/sparklabx/iceberg-metadata-migration).**
+> This repo is archived and read-only. All further development happens on the new repo.
+
 **Rewrite Apache Iceberg metadata paths after a data migration — without a JVM.**
 
 A pure-Python CLI that fixes stale paths in Iceberg table metadata after data has landed on AWS S3. Runs in seconds, not minutes. No Spark cluster. No JVM. Drop it into any post-sync pipeline.
